@@ -1,0 +1,56 @@
+# api-gateway: unico punto de entrada (:8080). Enruta por path al microservicio via Eureka.
+# En Spring Cloud Gateway 5 (Spring Cloud 2025.1) las propiedades van bajo spring.cloud.gateway.server.webflux
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          discovery:
+            locator:
+              # Ademas de las rutas de abajo, crea una ruta automatica por cada servicio de Eureka:
+              # /ms-duenio/api/duenios -> lb://ms-duenio/api/duenios
+              enabled: true
+              lower-case-service-id: true
+          routes:
+            # lb:// = Spring Cloud LoadBalancer: resuelve el nombre contra Eureka y balancea entre instancias
+            - id: ms-duenio
+              uri: lb://ms-duenio
+              predicates:
+                - Path=/api/duenios/**
+            - id: ms-mascota
+              uri: lb://ms-mascota
+              predicates:
+                - Path=/api/mascotas/**
+            - id: ms-veterinario
+              uri: lb://ms-veterinario
+              predicates:
+                - Path=/api/veterinarios/**
+            - id: ms-turno
+              uri: lb://ms-turno
+              predicates:
+                - Path=/api/turnos/**
+          globalcors:
+            cors-configurations:
+              '[/**]':
+                # Solo para desarrollo: en produccion poner el dominio real del frontend
+                allowed-origins: "*"
+                allowed-methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+                allowed-headers: "*"
+                allow-credentials: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Reemplaza la lista del application.yml compartido: el gateway expone su endpoint de rutas
+        include: health,info,metrics,gateway
+  endpoint:
+    gateway:
+      # El endpoint /actuator/gateway viene con access "none" por defecto: exponerlo no alcanza.
+      access: read-only
+
+info:
+  app:
+    name: api-gateway
+    description: Punto de entrada unico de la API - Huellitas Perdidas
+    version: 1.0.0

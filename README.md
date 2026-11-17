@@ -11,6 +11,7 @@ Proyecto Maven multi-módulo, Spring Boot 4.1.1, Spring Cloud 2025.1.3, Java 21,
 |---|---|---|---|
 | `config-server` | 8888 | Spring Cloud Config | Configuración centralizada para todos los microservicios |
 | `eureka-server` | 8761 | Spring Cloud Netflix Eureka | Service Discovery: registro y localización de servicios |
+| `api-gateway` | 8080 | Spring Cloud Gateway (WebFlux) | **Único punto de entrada** para los clientes externos: enruta a cada microservicio vía Eureka |
 
 ### Microservicios
 
@@ -50,17 +51,24 @@ Cada uno en su propia terminal, esperando que el anterior esté arriba:
 ./mvnw spring-boot:run -pl ms-mascota
 ./mvnw spring-boot:run -pl ms-veterinario
 ./mvnw spring-boot:run -pl ms-turno
+
+# 4. API Gateway
+./mvnw spring-boot:run -pl api-gateway
 ```
 
 - Si un microservicio arranca **antes que Config Server**, no obtiene su configuración (datasource, JPA,
-  Eureka) y falla al arrancar por falta de datasource.
+  Eureka) y falla al arrancar por falta de datasource. El gateway, en cambio, **no arranca** sin Config Server
+  (import sin `optional:`): sin su config no tendría rutas.
 - Si arranca **antes que Eureka**, no puede registrarse, pero reintenta automáticamente y aparece en el dashboard cuando Eureka levanta.
+- El gateway y los servicios que usan Feign refrescan su copia del registro de Eureka cada 30 segundos: justo
+  después de levantar un servicio, las llamadas a él pueden fallar durante ese lapso.
 
 ### Verificación
 
 | Qué | URL |
 |---|---|
-| Dashboard de Eureka (deben aparecer los 4 servicios) | `http://localhost:8761` |
+| Dashboard de Eureka (deben aparecer los 4 servicios y `API-GATEWAY`) | `http://localhost:8761` |
+| Rutas del gateway | `http://localhost:8080/actuator/gateway/routes` |
 | Config de un servicio servida por Config Server | `http://localhost:8888/ms-duenio/default` |
 | Swagger de cada servicio | `http://localhost:{puerto}/swagger-ui/index.html` |
 | Estado del servicio (incluye BD y Eureka) | `http://localhost:{puerto}/actuator/health` |
@@ -96,6 +104,38 @@ y se configura `spring.cloud.config.server.git.uri` apuntando al repo con los mi
 Todos los microservicios exponen `health`, `info`, `metrics`, `env`, `beans` y `mappings` bajo `/actuator`
 (configurado en el `application.yml` compartido del Config Server). `health` muestra el detalle completo
 (`show-details: always`) e `info` devuelve los datos de `info.app` de cada servicio.
+
+## API Gateway
+
+A partir del Sprint 12 **los clientes externos solo usan `http://localhost:8080`**: los puertos 8081-8084 son un
+detalle interno. El gateway recibe cada request y, según el path, la reenvía al microservicio que corresponde,
+resolviendo su ubicación en Eureka (`lb://`):
+
+| Path externo (:8080) | Microservicio destino | Puerto interno |
+|---|---|---|
+| `/api/duenios/**` | `ms-duenio` | 8081 |
+| `/api/mascotas/**` | `ms-mascota` | 8082 |
+| `/api/veterinarios/**` | `ms-veterinario` | 8083 |
+| `/api/turnos/**` | `ms-turno` | 8084 |
+| `/actuator/**` | el propio `api-gateway` | 8080 |
+
+```
+Cliente ──▶ api-gateway :8080 ──LoggingFilter──▶ ruta por Path ──lb://ms-x (Eureka)──▶ ms-x :808x
+```
+
+- **Rutas, CORS y Actuator** del gateway están en `config-repo/api-gateway.yml`; localmente solo tiene puerto,
+  nombre e import del Config Server. En Spring Cloud Gateway 5 las propiedades van bajo
+  `spring.cloud.gateway.server.webflux.*`.
+- **Logging centralizado:** `LoggingFilter` (un `GlobalFilter` con orden -1) registra cada request y su
+  respuesta: `[GATEWAY] --> POST /api/turnos` / `[GATEWAY] <-- POST /api/turnos 201 597ms`.
+- **CORS:** permite cualquier origen (solo desarrollo) con `GET, POST, PUT, PATCH, DELETE, OPTIONS`. `PATCH`.
+- **Discovery locator:** además de las 4 rutas, el gateway crea una ruta automática por cada servicio de Eureka
+  con su nombre como prefijo (`/ms-duenio/api/duenios/1`).
+- **Actuator:** `/actuator/gateway/routes` lista las rutas activas. El endpoint viene deshabilitado por defecto
+  (`management.endpoint.gateway.access: none`); se habilitó en modo `read-only`.
+- El gateway es **reactivo** (WebFlux, no Servlet): no debe tener `spring-boot-starter-webmvc`.
+- Los errores de negocio de los microservicios (400, 404, 409, 422 con su `ErrorResponse`) pasan intactos.
+- La comunicación **interna** (Feign entre servicios) no pasa por el gateway: va directo vía Eureka.
 
 ## Comunicación entre microservicios (OpenFeign)
 

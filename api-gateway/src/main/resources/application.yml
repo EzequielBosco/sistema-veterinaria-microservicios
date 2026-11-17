@@ -1,0 +1,11 @@
+# api-gateway — config local minima. Rutas, CORS y Actuator vienen del Config Server
+# (config-server/src/main/resources/config-repo/api-gateway.yml + application.yml compartido)
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  config:
+    # SIN "optional:": sin el Config Server el gateway arrancaria sin rutas y responderia 404 a todo.
+    import: "configserver:http://localhost:8888"

@@ -19,6 +19,7 @@
         <module>ms-mascota</module>
         <module>ms-veterinario</module>
         <module>ms-turno</module>
+        <module>api-gateway</module>
     </modules>
 
     <parent>
