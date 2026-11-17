@@ -31,11 +31,39 @@ spring:
         response:
           enabled: true
 
+# Resilience4j: parametros base para las llamadas Feign (ms-turno y ms-mascota).
+# Cada servicio declara sus instancias en su ms-<servicio>.yml con base-config: default.
+# El name de @CircuitBreaker/@Retry DEBE coincidir con la instancia: si no, se usan los defaults de la libreria.
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        # El estado de cada circuito en /actuator/health lo agrega CircuitBreakersHealthIndicator de cada servicio:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10                  # tasa de error sobre las ultimas 10 llamadas
+        minimum-number-of-calls: 5               # no evalua la tasa hasta tener 5 llamadas
+        failure-rate-threshold: 50               # 50% de fallos -> OPEN
+        wait-duration-in-open-state: 10s         # tiempo en OPEN antes de probar en HALF_OPEN
+        permitted-number-of-calls-in-half-open-state: 3
+        # Pasa a HALF_OPEN a los 10s aunque no lleguen llamadas (sin esto espera a la proxima llamada)
+        automatic-transition-from-open-to-half-open-enabled: true
+  retry:
+    configs:
+      default:
+        max-attempts: 3                          # incluye el intento original
+        wait-duration: 1s
+        enable-exponential-backoff: true         # 1s -> 2s
+        exponential-backoff-multiplier: 2
+        # Con el circuito abierto no tiene sentido reintentar: se responde el fallback al instante
+        ignore-exceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,env,beans,mappings
+        # circuitbreakers/circuitbreakerevents solo existen en los servicios con Resilience4j
+        include: health,info,metrics,env,beans,mappings,circuitbreakers,circuitbreakerevents
   endpoint:
     health:
       show-details: always

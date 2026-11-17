@@ -6,6 +6,23 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 # Timeouts y compresion de Feign: en el application.yml compartido (aplican a ms-turno y ms-mascota)
+
+# Instancias de Resilience4j: los nombres coinciden con @CircuitBreaker/@Retry de los adaptadores Feign.
+# Los parametros vienen de configs.default del application.yml compartido.
+resilience4j:
+  circuitbreaker:
+    instances:
+      mascotaService:
+        base-config: default
+      veterinarioService:
+        base-config: default
+  retry:
+    instances:
+      mascotaService:
+        base-config: default
+      veterinarioService:
+        base-config: default
+
 logging:
   level:
     # Loguea las llamadas a ms-mascota y ms-veterinario (requiere logger-level distinto de none)

@@ -35,6 +35,10 @@ Las bases se crean solas (`createDatabaseIfNotExist=true`) y Hibernate genera la
 ./mvnw clean package
 ```
 
+> Si Maven falla al descargar dependencias con `PKIX path building failed` (un antivirus o proxy que inspecciona
+> HTTPS), en Windows se resuelve usando el almacén de certificados del sistema:
+> `$env:MAVEN_OPTS="-Djavax.net.ssl.trustStoreType=Windows-ROOT"` (PowerShell) antes de `.\mvnw.cmd`.
+
 ### Orden de arranque (obligatorio)
 
 Cada uno en su propia terminal, esperando que el anterior esté arriba:
@@ -166,7 +170,8 @@ POST /api/turnos ──▶ TurnoController ──▶ TurnoServiceImpl
 | La mascota de un turno no existe en ms-mascota | 404 `No existe una mascota con id X` |
 | Algún veterinario de un turno no existe en ms-veterinario | 404 `No existe un veterinario con id X` |
 | El dueño de una mascota no existe en ms-duenio | 404 `No existe un duenio con id X` |
-| El servicio consultado está caído, sin instancias en Eureka o con timeout | 503 `Servicio remoto no disponible: ...` |
+| El servicio consultado está caído o con timeout (después de 3 intentos) | 503 `El servicio de mascotas no esta disponible: ...` |
+| El circuito hacia ese servicio está abierto | 503 inmediato `... no esta disponible: circuito abierto, ...` |
 
 - Los clientes Feign, sus DTOs de consumo y los adaptadores viven en `adapter/out/feign/` del servicio que
   llama. El dominio solo conoce puertos con un `boolean existsById` (`MascotaServicePort`,
@@ -181,6 +186,59 @@ POST /api/turnos ──▶ TurnoController ──▶ TurnoServiceImpl
 - Dependencias en tiempo de ejecución: para crear o actualizar turnos tienen que estar levantados
   ms-mascota y ms-veterinario; para crear una mascota o cambiarla de dueño, ms-duenio. Las consultas (GET),
   los eliminar y las ediciones que no cambian la referencia no dependen de otros servicios.
+
+## Resiliencia (Resilience4j)
+
+Cada llamada Feign está protegida con **Retry** y **Circuit Breaker** en su adaptador de salida, para que la caída
+de un servicio no se propague en cascada: el cliente recibe un 503 claro en lugar de un error 500 o una espera
+indefinida.
+
+| Adaptador | Servicio protegido | Instancias (CB y Retry) |
+|---|---|---|
+| `MascotaFeignAdapter` (ms-turno) | ms-mascota | `mascotaService` |
+| `VeterinarioFeignAdapter` (ms-turno) | ms-veterinario | `veterinarioService` |
+| `DuenioFeignAdapter` (ms-mascota) | ms-duenio | `duenioService` |
+
+```java
+@Retry(name = "mascotaService", fallbackMethod = "fallbackMascota")   // exterior: reintenta y aplica el fallback
+@CircuitBreaker(name = "mascotaService")                              // interior: cuenta cada intento
+public boolean existsById(Long id) { ... }
+
+private boolean fallbackMascota(Long id, Throwable ex) {              // mismos parámetros + Throwable
+    throw new ServicioNoDisponibleException("El servicio de mascotas no esta disponible: ...");  // → 503
+}
+```
+
+- **Retry:** hasta 3 intentos con espera exponencial (1 s, 2 s). No reintenta si el circuito está abierto
+  (`ignore-exceptions: CallNotPermittedException`), así la respuesta con el circuito abierto es inmediata.
+- **Circuit Breaker:** sobre las últimas 10 llamadas, con un mínimo de 5, si fallan el 50 % o más se abre
+  (OPEN) y durante 10 s rechaza las llamadas sin tocar el servicio caído. Después pasa solo a HALF_OPEN, deja
+  pasar 3 llamadas de prueba y, si salen bien, vuelve a CLOSED.
+- **El 404 no es un fallo:** el adaptador lo resuelve como "no existe", así que no se reintenta ni abre el circuito.
+- **Dónde se configura:** los parámetros están una sola vez en `configs.default` del `config-repo/application.yml`
+  compartido; cada servicio declara sus instancias en su `ms-<servicio>.yml` con `base-config: default`. El
+  `name` de las anotaciones tiene que coincidir con la instancia: si no, se usan los valores por defecto sin
+  ningún error.
+
+Comportamiento medido con ms-mascota apagado (`POST /api/turnos` repetido):
+
+| Request | Qué pasa | Tiempo |
+|---|---|---|
+| 1 | 3 intentos fallidos con esperas de 1 s y 2 s; el circuito sigue CLOSED | ~9 s |
+| 2 | Al 5.º fallo (80 %) el circuito se abre; el 3.er intento ya no se hace | ~3 s |
+| 3 en adelante | Circuito OPEN: 503 inmediato sin llamar a ms-mascota | ~0,02 s |
+
+**Monitoreo** (en ms-turno y ms-mascota):
+
+| Endpoint | Qué muestra |
+|---|---|
+| `/actuator/health` | Componente `circuitBreakers` con el estado de cada circuito (`CLOSED`/`OPEN`/`HALF_OPEN`) |
+| `/actuator/circuitbreakers` | Métricas de cada circuito (tasa de fallos, llamadas, rechazadas) |
+| `/actuator/circuitbreakerevents/{nombre}` | Historial: éxitos, errores, llamadas rechazadas y transiciones de estado |
+
+El estado general del servicio sigue `UP` aunque un circuito esté abierto: el caído es el otro servicio. El
+componente de health lo aporta `CircuitBreakersHealthIndicator` de cada servicio, porque el indicador que trae
+`resilience4j-spring-boot3` no se registra con Spring Boot 4 (busca la clase `HealthIndicator` de Boot 3).
 
 ## Endpoints
 

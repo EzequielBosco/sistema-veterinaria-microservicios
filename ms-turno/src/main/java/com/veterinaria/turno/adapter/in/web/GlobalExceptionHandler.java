@@ -3,6 +3,7 @@ package com.veterinaria.turno.adapter.in.web;
 import com.veterinaria.turno.domain.exception.BadRequestException;
 import com.veterinaria.turno.domain.exception.EstadoTurnoInvalidoException;
 import com.veterinaria.turno.domain.exception.MascotaNotFoundException;
+import com.veterinaria.turno.domain.exception.ServicioNoDisponibleException;
 import com.veterinaria.turno.domain.exception.TurnoNotFoundException;
 import com.veterinaria.turno.domain.exception.TurnoSuperpuestoException;
 import com.veterinaria.turno.domain.exception.VeterinarioNotFoundException;
@@ -46,8 +47,17 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Fallo en la comunicacion Feign (servicio remoto caido, sin instancias en Eureka, timeout
-     * o error 5xx del otro microservicio) -> 503 Service Unavailable.
+     * ms-mascota o ms-veterinario no responden: reintentos agotados o circuito abierto
+     * (lo lanzan los fallbacks de Resilience4j) -> 503 Service Unavailable.
+     */
+    @ExceptionHandler(ServicioNoDisponibleException.class)
+    public ResponseEntity<ErrorResponse> manejarServicioNoDisponible(ServicioNoDisponibleException ex,
+                                                                     HttpServletRequest request) {
+        return construir(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), request);
+    }
+
+    /**
+     * Red de seguridad: un fallo Feign que no paso por un fallback -> 503 Service Unavailable.
      * El 404 remoto no llega aca: lo traducen los adaptadores Feign a "no existe".
      */
     @ExceptionHandler(FeignException.class)

@@ -60,6 +60,16 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-openfeign</artifactId>
         </dependency>
+        <!-- Circuit Breaker y Retry sobre la llamada Feign a ms-duenio (version gestionada por el BOM de Spring Cloud) -->
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-spring-boot3</artifactId>
+        </dependency>
+        <!-- AOP: sin esto @CircuitBreaker y @Retry no hacen nada. En Spring Boot 4 es spring-boot-starter-aspectj -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aspectj</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

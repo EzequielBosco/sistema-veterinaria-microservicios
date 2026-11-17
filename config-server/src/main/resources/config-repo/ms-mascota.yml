@@ -6,6 +6,18 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 # Timeouts y compresion de Feign: en el application.yml compartido (aplican a ms-turno y ms-mascota)
+
+# Instancias de Resilience4j del DuenioFeignAdapter (parametros de configs.default del application.yml compartido)
+resilience4j:
+  circuitbreaker:
+    instances:
+      duenioService:
+        base-config: default
+  retry:
+    instances:
+      duenioService:
+        base-config: default
+
 logging:
   level:
     # Loguea las llamadas a ms-duenio (requiere logger-level distinto de none)
