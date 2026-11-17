@@ -1,6 +1,7 @@
 package com.veterinaria.turno.application;
 
 import com.veterinaria.turno.domain.exception.BadRequestException;
+import com.veterinaria.turno.domain.exception.EstadoTurnoInvalidoException;
 import com.veterinaria.turno.domain.exception.TurnoNotFoundException;
 import com.veterinaria.turno.domain.exception.TurnoSuperpuestoException;
 import com.veterinaria.turno.domain.model.EstadoTurno;
@@ -10,6 +11,8 @@ import com.veterinaria.turno.domain.model.Turno;
 import com.veterinaria.turno.domain.port.out.TurnoRepositoryPort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -172,6 +175,63 @@ class TurnoServiceImplTest {
                 .toList();
 
         assertThat(veterinarios).containsExactly(2L, 3L, 5L, 4L);
+    }
+
+    @Test
+    void registrar_conTurnoCanceladoEnElMismoHorario_noEsSuperposicion() {
+        Turno cancelado = crearTurno(LocalTime.of(10, 0), 30);
+        cancelado.setId(1L);
+        cancelado.setEstado(EstadoTurno.CANCELADO);
+        Turno nuevo = crearTurno(LocalTime.of(10, 0), 30);
+        nuevo.agregarParticipacion(2L, RolVeterinario.PRINCIPAL);
+        when(turnoRepository.buscarPorVeterinarioYFecha(2L, FECHA)).thenReturn(List.of(cancelado));
+        when(turnoRepository.guardar(nuevo)).thenReturn(nuevo);
+
+        assertThat(turnoService.registrar(nuevo)).isEqualTo(nuevo);
+    }
+
+    @Test
+    void buscarPorMascotaId_retornaTurnosDeLaMascota() {
+        Turno turno = crearTurno(LocalTime.of(10, 0), 30);
+        when(turnoRepository.buscarPorMascotaId(1L)).thenReturn(List.of(turno));
+
+        assertThat(turnoService.buscarPorMascotaId(1L)).containsExactly(turno);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = EstadoTurno.class, names = {"PENDIENTE", "CONFIRMADO"})
+    void cancelar_cuandoEstaPendienteOConfirmado_loPasaACancelado(EstadoTurno estado) {
+        Turno turno = crearTurno(LocalTime.of(10, 0), 30);
+        turno.setId(1L);
+        turno.setEstado(estado);
+        when(turnoRepository.buscarPorId(1L)).thenReturn(turno);
+        when(turnoRepository.guardar(turno)).thenReturn(turno);
+
+        Turno resultado = turnoService.cancelar(1L);
+
+        assertThat(resultado.getEstado()).isEqualTo(EstadoTurno.CANCELADO);
+        verify(turnoRepository).guardar(turno);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = EstadoTurno.class, names = {"CANCELADO", "ATENDIDO", "AUSENTE"})
+    void cancelar_cuandoNoEsCancelable_lanzaEstadoTurnoInvalidoExceptionYNoGuarda(EstadoTurno estado) {
+        Turno turno = crearTurno(LocalTime.of(10, 0), 30);
+        turno.setId(1L);
+        turno.setEstado(estado);
+        when(turnoRepository.buscarPorId(1L)).thenReturn(turno);
+
+        assertThrows(EstadoTurnoInvalidoException.class, () -> turnoService.cancelar(1L));
+        assertThat(turno.getEstado()).isEqualTo(estado);
+        verify(turnoRepository, never()).guardar(any(Turno.class));
+    }
+
+    @Test
+    void cancelar_cuandoNoExiste_lanzaTurnoNotFoundException() {
+        when(turnoRepository.buscarPorId(99L)).thenReturn(null);
+
+        assertThrows(TurnoNotFoundException.class, () -> turnoService.cancelar(99L));
+        verify(turnoRepository, never()).guardar(any(Turno.class));
     }
 
     @Test

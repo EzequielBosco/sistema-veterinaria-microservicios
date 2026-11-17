@@ -1,6 +1,7 @@
 package com.veterinaria.turno.adapter.in.web;
 
 import com.veterinaria.turno.domain.exception.BadRequestException;
+import com.veterinaria.turno.domain.exception.EstadoTurnoInvalidoException;
 import com.veterinaria.turno.domain.exception.TurnoNotFoundException;
 import com.veterinaria.turno.domain.exception.TurnoSuperpuestoException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,6 +33,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> manejarSuperpuesto(TurnoSuperpuestoException ex,
                                                             HttpServletRequest request) {
         return construir(HttpStatus.CONFLICT, ex.getMessage(), request);
+    }
+
+    /** El estado del turno no permite la operacion (ej. cancelar uno ya atendido) -> 422 Unprocessable Entity */
+    @ExceptionHandler(EstadoTurnoInvalidoException.class)
+    public ResponseEntity<ErrorResponse> manejarEstadoInvalido(EstadoTurnoInvalidoException ex,
+                                                               HttpServletRequest request) {
+        return construir(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(), request);
     }
 
     /** Regla de negocio incumplida en el request -> 400 Bad Request */

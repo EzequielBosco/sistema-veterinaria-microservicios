@@ -51,6 +51,18 @@ public class VeterinarioController {
     }
 
     @Operation(
+        summary = "Listar veterinarios por especialidad",
+        description = "Retorna los veterinarios de una especialidad, sin distinguir mayúsculas de minúsculas. Lista vacía si no hay ninguno"
+    )
+    @GetMapping("/especialidad/{especialidad}")
+    public ResponseEntity<List<VeterinarioResponse>> buscarPorEspecialidad(@PathVariable String especialidad) {
+        List<VeterinarioResponse> respuesta = veterinarioService.buscarPorEspecialidad(especialidad).stream()
+                .map(VeterinarioMapper::toResponse)
+                .toList();
+        return ResponseEntity.ok(respuesta);
+    }
+
+    @Operation(
         summary = "Registrar un nuevo veterinario",
         description = "Crea un nuevo veterinario. El email y la matrícula deben ser únicos en el sistema"
     )

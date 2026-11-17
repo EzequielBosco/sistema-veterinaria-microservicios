@@ -87,6 +87,15 @@ public class TurnoController {
         return ResponseEntity.ok(respuesta);
     }
 
+    @Operation(summary = "Listar turnos de una mascota", description = "Retorna el historial de turnos de una mascota ordenado por fecha y hora")
+    @GetMapping("/mascota/{mascotaId}")
+    public ResponseEntity<List<TurnoResponse>> buscarPorMascotaId(@PathVariable Long mascotaId) {
+        List<TurnoResponse> respuesta = turnoService.buscarPorMascotaId(mascotaId).stream()
+                .map(TurnoMapper::toResponse)
+                .toList();
+        return ResponseEntity.ok(respuesta);
+    }
+
     @Operation(
         summary = "Registrar un nuevo turno",
         description = "Crea un nuevo turno. La fecha y hora deben ser posteriores al momento actual. " +
@@ -125,6 +134,23 @@ public class TurnoController {
     public ResponseEntity<TurnoResponse> actualizar(@PathVariable Long id,
                                                     @Valid @RequestBody TurnoRequest request) {
         return ResponseEntity.ok(TurnoMapper.toResponse(turnoService.actualizar(id, TurnoMapper.toEntity(request))));
+    }
+
+    @Operation(
+        summary = "Cancelar turno",
+        description = "Pasa el turno a estado CANCELADO y libera el horario de sus veterinarios. " +
+            "Solo se pueden cancelar turnos en estado PENDIENTE o CONFIRMADO"
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Turno cancelado exitosamente"),
+        @ApiResponse(responseCode = "404", description = "Turno no encontrado",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "422", description = "El turno ya está cancelado, atendido o ausente",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PatchMapping("/{id}/cancelar")
+    public ResponseEntity<TurnoResponse> cancelar(@PathVariable Long id) {
+        return ResponseEntity.ok(TurnoMapper.toResponse(turnoService.cancelar(id)));
     }
 
     @Operation(summary = "Eliminar turno", description = "Elimina un turno del sistema a partir de su ID")

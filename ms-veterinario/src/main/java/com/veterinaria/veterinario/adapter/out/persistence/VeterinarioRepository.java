@@ -16,6 +16,8 @@ public interface VeterinarioRepository
 
     boolean existsByEmail(String email);
 
+    List<Veterinario> findByEspecialidadIgnoreCaseOrderByApellidoAscNombreAsc(String especialidad);
+
     @Override
     default List<Veterinario> buscarTodos() {
         return findAll();
@@ -24,6 +26,11 @@ public interface VeterinarioRepository
     @Override
     default Veterinario buscarPorId(Long id) {
         return findById(id).orElse(null);
+    }
+
+    @Override
+    default List<Veterinario> buscarPorEspecialidad(String especialidad) {
+        return findByEspecialidadIgnoreCaseOrderByApellidoAscNombreAsc(especialidad);
     }
 
     @Override

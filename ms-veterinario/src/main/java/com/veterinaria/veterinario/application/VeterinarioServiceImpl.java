@@ -37,6 +37,11 @@ public class VeterinarioServiceImpl implements VeterinarioService {
     }
 
     @Override
+    public List<Veterinario> buscarPorEspecialidad(String especialidad) {
+        return veterinarioRepository.buscarPorEspecialidad(especialidad.trim());
+    }
+
+    @Override
     @Transactional
     public Veterinario registrar(Veterinario veterinario) {
         normalizarEmail(veterinario);

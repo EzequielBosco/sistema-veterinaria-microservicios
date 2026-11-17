@@ -129,6 +129,7 @@ Todos los microservicios exponen `health`, `info`, `metrics`, `env`, `beans` y `
 |---|---|---|
 | GET | `/api/veterinarios` | Listar todos |
 | GET | `/api/veterinarios/{id}` | Buscar por ID |
+| GET | `/api/veterinarios/especialidad/{especialidad}` | Veterinarios de una especialidad (sin distinguir mayúsculas) |
 | POST | `/api/veterinarios` | Crear (409 si matrícula o email duplicados) |
 | PUT | `/api/veterinarios/{id}` | Actualizar |
 | DELETE | `/api/veterinarios/{id}` | Eliminar |
@@ -142,13 +143,16 @@ Todos los microservicios exponen `health`, `info`, `metrics`, `env`, `beans` y `
 | GET | `/api/turnos/{id}` | Buscar por ID |
 | GET | `/api/turnos/{id}/veterinarios` | Veterinarios del turno con su rol |
 | GET | `/api/turnos/veterinario/{veterinarioId}` | Turnos de un veterinario con su rol |
+| GET | `/api/turnos/mascota/{mascotaId}` | Historial de turnos de una mascota |
 | POST | `/api/turnos` | Crear |
 | PUT | `/api/turnos/{id}` | Actualizar (reemplaza los veterinarios asignados) |
+| PATCH | `/api/turnos/{id}/cancelar` | Cancelar (422 si ya está `CANCELADO`, `ATENDIDO` o `AUSENTE`) |
 | DELETE | `/api/turnos/{id}` | Eliminar |
 
 Reglas de turnos: fecha y hora futuras, duración mínima de 10 minutos, al menos un veterinario,
 exactamente uno con rol `PRINCIPAL`, sin veterinarios repetidos y sin superposición horaria
-para un mismo veterinario (409).
+para un mismo veterinario (409). Los turnos cancelados no cuentan para la superposición:
+cancelar un turno libera el horario de sus veterinarios.
 
 ## Arquitectura
 

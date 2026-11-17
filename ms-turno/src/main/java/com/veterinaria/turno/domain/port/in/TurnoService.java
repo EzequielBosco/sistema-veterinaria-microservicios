@@ -12,8 +12,10 @@ public interface TurnoService {
     List<Turno> buscarAgenda(Long veterinarioId, LocalDate fecha);
     Turno buscarPorId(Long id);
     List<Turno> buscarPorVeterinarioId(Long veterinarioId);
+    List<Turno> buscarPorMascotaId(Long mascotaId);
     List<Participacion> buscarParticipaciones(Long turnoId);
     Turno registrar(Turno turno);
     Turno actualizar(Long id, Turno turno);
+    Turno cancelar(Long id);
     void eliminarPorId(Long id);
 }

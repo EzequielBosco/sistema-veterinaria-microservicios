@@ -11,6 +11,7 @@ public interface TurnoRepositoryPort {
     Turno buscarPorId(Long id);
     List<Turno> buscarPorVeterinarioYFecha(Long veterinarioId, LocalDate fecha);
     List<Turno> buscarPorVeterinarioId(Long veterinarioId);
+    List<Turno> buscarPorMascotaId(Long mascotaId);
     Turno guardar(Turno turno);
     void eliminarPorId(Long id);
 }

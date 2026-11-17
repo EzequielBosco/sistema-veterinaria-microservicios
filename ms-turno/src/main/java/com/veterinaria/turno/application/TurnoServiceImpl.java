@@ -1,6 +1,7 @@
 package com.veterinaria.turno.application;
 
 import com.veterinaria.turno.domain.exception.BadRequestException;
+import com.veterinaria.turno.domain.exception.EstadoTurnoInvalidoException;
 import com.veterinaria.turno.domain.exception.TurnoNotFoundException;
 import com.veterinaria.turno.domain.exception.TurnoSuperpuestoException;
 import com.veterinaria.turno.domain.model.EstadoTurno;
@@ -29,6 +30,8 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 public class TurnoServiceImpl implements TurnoService {
+
+    private static final Set<EstadoTurno> ESTADOS_CANCELABLES = Set.of(EstadoTurno.PENDIENTE, EstadoTurno.CONFIRMADO);
 
     private final TurnoRepositoryPort turnoRepository;
 
@@ -61,6 +64,12 @@ public class TurnoServiceImpl implements TurnoService {
     @Transactional(readOnly = true)
     public List<Turno> buscarPorVeterinarioId(Long veterinarioId) {
         return turnoRepository.buscarPorVeterinarioId(veterinarioId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Turno> buscarPorMascotaId(Long mascotaId) {
+        return turnoRepository.buscarPorMascotaId(mascotaId);
     }
 
     @Override
@@ -100,6 +109,18 @@ public class TurnoServiceImpl implements TurnoService {
         turno.getParticipaciones().forEach(participacion ->
                 existente.agregarParticipacion(participacion.getVeterinarioId(), participacion.getRol()));
         return turnoRepository.guardar(existente);
+    }
+
+    @Override
+    @Transactional
+    public Turno cancelar(Long id) {
+        Turno turno = buscarPorId(id);
+        // Regla de negocio: solo se cancela un turno que todavia no ocurrio ni fue cancelado
+        if (!ESTADOS_CANCELABLES.contains(turno.getEstado())) {
+            throw new EstadoTurnoInvalidoException(id, turno.getEstado(), "cancelar");
+        }
+        turno.setEstado(EstadoTurno.CANCELADO);
+        return turnoRepository.guardar(turno);
     }
 
     @Override
@@ -163,6 +184,8 @@ public class TurnoServiceImpl implements TurnoService {
         return turnoRepository.buscarPorVeterinarioYFecha(veterinarioId, turno.getFecha())
                 .stream()
                 .filter(existente -> turnoId == null || !turnoId.equals(existente.getId()))
+                // Un turno cancelado libera el horario del veterinario
+                .filter(existente -> existente.getEstado() != EstadoTurno.CANCELADO)
                 .filter(existente -> {
                     LocalTime inicioExistente = existente.getHora();
                     LocalTime finExistente = inicioExistente.plusMinutes(existente.getDuracionMinutos());

@@ -53,6 +53,21 @@ class VeterinarioServiceImplTest {
     }
 
     @Test
+    void buscarPorEspecialidad_quitaEspaciosYDelegaAlRepositorio() {
+        Veterinario veterinario = crearVeterinario();
+        when(veterinarioRepository.buscarPorEspecialidad("Clínica general")).thenReturn(List.of(veterinario));
+
+        assertThat(veterinarioService.buscarPorEspecialidad("  Clínica general ")).containsExactly(veterinario);
+    }
+
+    @Test
+    void buscarPorEspecialidad_sinResultados_retornaListaVacia() {
+        when(veterinarioRepository.buscarPorEspecialidad("Cardiología")).thenReturn(List.of());
+
+        assertThat(veterinarioService.buscarPorEspecialidad("Cardiología")).isEmpty();
+    }
+
+    @Test
     void registrar_cuandoEsValido_guardaVeterinario() {
         Veterinario veterinario = crearVeterinario();
         when(veterinarioRepository.existePorMatricula("MV-4521")).thenReturn(false);

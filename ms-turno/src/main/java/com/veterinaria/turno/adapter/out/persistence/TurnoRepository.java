@@ -19,6 +19,8 @@ public interface TurnoRepository extends JpaRepository<Turno, Long>, TurnoReposi
 
     List<Turno> findDistinctByParticipacionesVeterinarioIdOrderByFechaAscHoraAsc(Long veterinarioId);
 
+    List<Turno> findByMascotaIdOrderByFechaAscHoraAsc(Long mascotaId);
+
     @Override
     default List<Turno> buscarTodos() {
         return findAll();
@@ -37,6 +39,11 @@ public interface TurnoRepository extends JpaRepository<Turno, Long>, TurnoReposi
     @Override
     default List<Turno> buscarPorVeterinarioId(Long veterinarioId) {
         return findDistinctByParticipacionesVeterinarioIdOrderByFechaAscHoraAsc(veterinarioId);
+    }
+
+    @Override
+    default List<Turno> buscarPorMascotaId(Long mascotaId) {
+        return findByMascotaIdOrderByFechaAscHoraAsc(mascotaId);
     }
 
     @Override
