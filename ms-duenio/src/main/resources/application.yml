@@ -1,0 +1,16 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: ms-duenio
+  datasource:
+    url: jdbc:mysql://localhost:3306/duenio_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: ${DB_USER:root}
+    password: ${DB_PASS:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  # NO configurar spring.jpa.database-platform: Hibernate 7 detecta el dialecto solo
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
