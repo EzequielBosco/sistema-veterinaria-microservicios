@@ -71,6 +71,7 @@ Cada uno en su propia terminal, esperando que el anterior esté arriba:
 
 | Qué | URL |
 |---|---|
+| **Frontend** (servido por el gateway) | `http://localhost:8080` |
 | Dashboard de Eureka (deben aparecer los 4 servicios y `API-GATEWAY`) | `http://localhost:8761` |
 | Rutas del gateway | `http://localhost:8080/actuator/gateway/routes` |
 | Config de un servicio servida por Config Server | `http://localhost:8888/ms-duenio/default` |
@@ -239,6 +240,32 @@ Comportamiento medido con ms-mascota apagado (`POST /api/turnos` repetido):
 El estado general del servicio sigue `UP` aunque un circuito esté abierto: el caído es el otro servicio. El
 componente de health lo aporta `CircuitBreakersHealthIndicator` de cada servicio, porque el indicador que trae
 `resilience4j-spring-boot3` no se registra con Spring Boot 4 (busca la clase `HealthIndicator` de Boot 3).
+
+## Frontend
+
+Página única en HTML + Bootstrap 5 + JavaScript vanilla, en
+`api-gateway/src/main/resources/static/index.html`. La sirve el propio **API Gateway** en
+`http://localhost:8080`, así que todas las llamadas van por el gateway (`/api/...`, misma URL de origen, sin CORS).
+Se abre con todo el sistema levantado: config-server, eureka-server, los 4 microservicios y el gateway.
+
+| Tab | Qué permite | Endpoints que usa |
+|---|---|---|
+| Dueños | Alta, edición y baja | `/api/duenios` |
+| Mascotas | Alta, edición y baja; elegir dueño mostrando su cupo (x/5) | `/api/mascotas`, `/api/duenios` |
+| Veterinarios | Alta, edición, baja y filtro por especialidad | `/api/veterinarios`, `/api/veterinarios/especialidad/{e}` |
+| Turnos | Alta y edición con uno o más veterinarios y su rol, cancelar y eliminar | `/api/turnos`, `PATCH /api/turnos/{id}/cancelar`, `/api/mascotas`, `/api/veterinarios` |
+
+- **Nombres de otros servicios:** cada microservicio devuelve solo IDs de los otros contextos (`duenioId`,
+  `mascotaId`, `veterinarioId`). El frontend arma los nombres con las listas de cada servicio. Si uno no
+  responde, la tabla se muestra igual con el ID (por ejemplo `Dueño #3`).
+- **Errores:** los mensajes de negocio (`mensaje` del `ErrorResponse`) se muestran en el modal o en un aviso:
+  DNI o matrícula duplicados (409), cupo de mascotas (422), turno superpuesto (409), mascota o veterinario
+  inexistente (404) y servicio caído o circuito abierto (503).
+- **Cancelar turno** solo aparece en los turnos `PENDIENTE` o `CONFIRMADO`.
+- Al eliminar un dueño con mascotas se avisa que quedan sin dueño: cada servicio tiene su propia base y el borrado
+  no se propaga.
+- También se puede abrir fuera del gateway (por ejemplo con Live Server): en ese caso llama a
+  `http://localhost:8080/api`, que tiene CORS habilitado.
 
 ## Endpoints
 
