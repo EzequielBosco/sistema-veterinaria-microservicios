@@ -13,6 +13,8 @@
     <name>Huellitas Perdidas - Sistema Veterinario</name>
 
     <modules>
+        <module>config-server</module>
+        <module>eureka-server</module>
         <module>ms-duenio</module>
         <module>ms-mascota</module>
         <module>ms-veterinario</module>

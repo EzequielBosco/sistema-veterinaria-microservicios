@@ -1,16 +1,11 @@
-# ms-mascota — configuracion local. En el Sprint 10 el datasource pasa al Config Server (config/ms-mascota.yml)
+# ms-mascota — config local minima. Datasource, JPA, Eureka y Actuator vienen del Config Server
+# (config-server/src/main/resources/config-repo/ms-mascota.yml + application.yml compartido)
 server:
   port: 8082
 
 spring:
   application:
+    # Define que archivo pide al Config Server (ms-mascota.yml) y el nombre con el que se registra en Eureka
     name: ms-mascota
-  datasource:
-    url: jdbc:mysql://localhost:3306/mascota_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-    username: root
-    password: root
-    driver-class-name: com.mysql.cj.jdbc.Driver
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
+  config:
+    import: "optional:configserver:http://localhost:8888"

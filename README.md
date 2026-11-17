@@ -1,9 +1,18 @@
 # Huellitas Perdidas - Sistema Veterinario (Microservicios)
 
 Migración del monolito `sistema-veterinaria-Bosco` a una arquitectura de microservicios.
-Proyecto Maven multi-módulo, Spring Boot 4.1.1, Java 21, MySQL.
+Proyecto Maven multi-módulo, Spring Boot 4.1.1, Spring Cloud 2025.1.3, Java 21, MySQL.
 
-## Microservicios
+## Módulos
+
+### Infraestructura
+
+| Módulo | Puerto | Tecnología | Rol |
+|---|---|---|---|
+| `config-server` | 8888 | Spring Cloud Config | Configuración centralizada para todos los microservicios |
+| `eureka-server` | 8761 | Spring Cloud Netflix Eureka | Service Discovery: registro y localización de servicios |
+
+### Microservicios
 
 | Módulo | Puerto | Base de datos | Entidades |
 |---|---|---|---|
@@ -23,15 +32,70 @@ Las bases se crean solas (`createDatabaseIfNotExist=true`) y Hibernate genera la
 ```bash
 # Compilar y testear todos los módulos desde la raíz
 ./mvnw clean package
+```
 
-# Levantar un microservicio
+### Orden de arranque (obligatorio)
+
+Cada uno en su propia terminal, esperando que el anterior esté arriba:
+
+```bash
+# 1. Config Server: tiene que estar UP antes que cualquier microservicio
+./mvnw spring-boot:run -pl config-server
+
+# 2. Eureka Server: tiene que estar UP antes que los microservicios
+./mvnw spring-boot:run -pl eureka-server
+
+# 3. Microservicios, en cualquier orden
 ./mvnw spring-boot:run -pl ms-duenio
 ./mvnw spring-boot:run -pl ms-mascota
 ./mvnw spring-boot:run -pl ms-veterinario
 ./mvnw spring-boot:run -pl ms-turno
 ```
 
-Swagger de cada servicio: `http://localhost:{puerto}/swagger-ui/index.html`
+- Si un microservicio arranca **antes que Config Server**, no obtiene su configuración (datasource, JPA,
+  Eureka) y falla al arrancar por falta de datasource.
+- Si arranca **antes que Eureka**, no puede registrarse, pero reintenta automáticamente y aparece en el dashboard cuando Eureka levanta.
+
+### Verificación
+
+| Qué | URL |
+|---|---|
+| Dashboard de Eureka (deben aparecer los 4 servicios) | `http://localhost:8761` |
+| Config de un servicio servida por Config Server | `http://localhost:8888/ms-duenio/default` |
+| Swagger de cada servicio | `http://localhost:{puerto}/swagger-ui/index.html` |
+| Estado del servicio (incluye BD y Eureka) | `http://localhost:{puerto}/actuator/health` |
+| Información del servicio | `http://localhost:{puerto}/actuator/info` |
+
+## Config Server
+
+La configuración se centraliza en `config-server/src/main/resources/config-repo/`. Config Server corre con el
+perfil `native`, que sirve los archivos desde el classpath en lugar de un repositorio Git:
+
+| Archivo | Contenido |
+|---|---|
+| `application.yml` | Config compartida por todos: URL de Eureka, JPA (`ddl-auto`, `show-sql`) y Actuator |
+| `ms-<servicio>.yml` | Config propia de cada servicio: datasource e `info.app` (tiene prioridad sobre la compartida) |
+
+Cada microservicio solo tiene localmente su nombre, su puerto y el import del Config Server:
+
+```yaml
+server:
+  port: 8081
+spring:
+  application:
+    name: ms-duenio            # define qué archivo pide (ms-duenio.yml) y su nombre en Eureka
+  config:
+    import: "optional:configserver:http://localhost:8888"
+```
+
+Para pasar a un repositorio Git, se quita el perfil `native` en `config-server/src/main/resources/application.yml`
+y se configura `spring.cloud.config.server.git.uri` apuntando al repo con los mismos archivos.
+
+## Actuator
+
+Todos los microservicios exponen `health`, `info`, `metrics`, `env`, `beans` y `mappings` bajo `/actuator`
+(configurado en el `application.yml` compartido del Config Server). `health` muestra el detalle completo
+(`show-details: always`) e `info` devuelve los datos de `info.app` de cada servicio.
 
 ## Endpoints
 

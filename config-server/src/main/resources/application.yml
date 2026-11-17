@@ -1,0 +1,17 @@
+# config-server — Configuracion centralizada. Ej: GET http://localhost:8888/ms-duenio/default
+server:
+  port: 8888
+
+spring:
+  application:
+    name: config-server
+  profiles:
+    # native: sirve los archivos desde el classpath en lugar de un repositorio Git
+    active: native
+  cloud:
+    config:
+      server:
+        native:
+          search-locations: classpath:/config-repo
+
+
