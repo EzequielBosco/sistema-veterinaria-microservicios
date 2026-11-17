@@ -7,7 +7,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * DTO de SALIDA de Veterinario: lo que la API devuelve al cliente.
- * Este es el JSON que ms-turno consumira via Feign.
+ * Este es el JSON que ms-turno consume via Feign para validar que exista.
  */
 @Data
 @NoArgsConstructor

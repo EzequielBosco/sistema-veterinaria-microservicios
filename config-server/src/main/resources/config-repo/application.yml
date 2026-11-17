@@ -13,6 +13,23 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
+  # Clientes Feign: aplica a todo servicio que llame a otro (hoy ms-turno y ms-mascota).
+  # En los servicios sin @FeignClient estas propiedades no tienen efecto.
+  cloud:
+    openfeign:
+      client:
+        config:
+          # default aplica a todos los @FeignClient; se puede sobreescribir por nombre (ej. ms-duenio)
+          default:
+            connect-timeout: 3000   # ms para establecer la conexion
+            read-timeout: 5000      # ms para esperar la respuesta
+            # Sin un logger-level distinto de none, Feign no loguea nada aunque el paquete este en DEBUG
+            logger-level: basic     # metodo, URL, status y tiempo de cada llamada
+      compression:
+        request:
+          enabled: true
+        response:
+          enabled: true
 
 management:
   endpoints:

@@ -2,9 +2,11 @@ package com.veterinaria.mascota.application;
 
 import com.veterinaria.mascota.domain.exception.BadRequestException;
 import com.veterinaria.mascota.domain.exception.CupoMascotasExcedidoException;
+import com.veterinaria.mascota.domain.exception.DuenioNotFoundException;
 import com.veterinaria.mascota.domain.exception.MascotaNotFoundException;
 import com.veterinaria.mascota.domain.model.Mascota;
 import com.veterinaria.mascota.domain.model.SexoMascota;
+import com.veterinaria.mascota.domain.port.out.DuenioServicePort;
 import com.veterinaria.mascota.domain.port.out.MascotaRepositoryPort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +23,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,6 +31,9 @@ class MascotaServiceImplTest {
 
     @Mock
     private MascotaRepositoryPort mascotaRepository;
+
+    @Mock
+    private DuenioServicePort duenioService;
 
     @InjectMocks
     private MascotaServiceImpl mascotaService;
@@ -61,12 +67,26 @@ class MascotaServiceImplTest {
     }
 
     @Test
-    void registrar_conCupoDisponible_guardaMascota() {
+    void registrar_conCupoDisponibleYDuenioExistente_guardaMascota() {
         Mascota mascota = crearMascota(1L);
         when(mascotaRepository.contarPorDuenioId(1L)).thenReturn(4L);
+        when(duenioService.existsById(1L)).thenReturn(true);
         when(mascotaRepository.guardar(mascota)).thenReturn(mascota);
 
         assertThat(mascotaService.registrar(mascota)).isEqualTo(mascota);
+        verify(duenioService).existsById(1L);
+    }
+
+    @Test
+    void registrar_conDuenioInexistente_lanzaDuenioNotFoundExceptionYNoGuarda() {
+        Mascota mascota = crearMascota(77L);
+        when(mascotaRepository.contarPorDuenioId(77L)).thenReturn(0L);
+        when(duenioService.existsById(77L)).thenReturn(false);
+
+        DuenioNotFoundException ex = assertThrows(DuenioNotFoundException.class,
+                () -> mascotaService.registrar(mascota));
+        assertThat(ex.getMessage()).contains("id 77");
+        verify(mascotaRepository, never()).guardar(any(Mascota.class));
     }
 
     @Test
@@ -75,19 +95,21 @@ class MascotaServiceImplTest {
 
         assertThrows(BadRequestException.class, () -> mascotaService.registrar(mascota));
         verify(mascotaRepository, never()).guardar(any(Mascota.class));
+        verifyNoInteractions(duenioService);
     }
 
     @Test
-    void registrar_conCupoCompleto_lanzaCupoMascotasExcedidoExceptionYNoGuarda() {
+    void registrar_conCupoCompleto_lanzaCupoMascotasExcedidoExceptionSinConsultarMsDuenio() {
         Mascota mascota = crearMascota(1L);
         when(mascotaRepository.contarPorDuenioId(1L)).thenReturn(5L);
 
         assertThrows(CupoMascotasExcedidoException.class, () -> mascotaService.registrar(mascota));
         verify(mascotaRepository, never()).guardar(any(Mascota.class));
+        verifyNoInteractions(duenioService);
     }
 
     @Test
-    void actualizar_mismoDuenio_noValidaCupo() {
+    void actualizar_mismoDuenio_noValidaCupoNiConsultaMsDuenio() {
         Mascota existente = crearMascota(1L);
         Mascota cambios = crearMascota(1L);
         cambios.setNombre("Rocky");
@@ -98,6 +120,19 @@ class MascotaServiceImplTest {
 
         assertThat(resultado.getNombre()).isEqualTo("Rocky");
         verify(mascotaRepository, never()).contarPorDuenioId(anyLong());
+        verifyNoInteractions(duenioService);
+    }
+
+    @Test
+    void actualizar_cambioADuenioInexistente_lanzaDuenioNotFoundExceptionYNoReasigna() {
+        Mascota existente = crearMascota(1L);
+        when(mascotaRepository.buscarPorId(10L)).thenReturn(existente);
+        when(mascotaRepository.contarPorDuenioId(77L)).thenReturn(0L);
+        when(duenioService.existsById(77L)).thenReturn(false);
+
+        assertThrows(DuenioNotFoundException.class, () -> mascotaService.actualizar(10L, crearMascota(77L)));
+        assertThat(existente.getDuenioId()).isEqualTo(1L);
+        verify(mascotaRepository, never()).guardar(any(Mascota.class));
     }
 
     @Test
@@ -114,6 +149,7 @@ class MascotaServiceImplTest {
         Mascota existente = crearMascota(1L);
         when(mascotaRepository.buscarPorId(10L)).thenReturn(existente);
         when(mascotaRepository.contarPorDuenioId(2L)).thenReturn(0L);
+        when(duenioService.existsById(2L)).thenReturn(true);
         when(mascotaRepository.guardar(existente)).thenReturn(existente);
 
         assertThat(mascotaService.actualizar(10L, crearMascota(2L)).getDuenioId()).isEqualTo(2L);

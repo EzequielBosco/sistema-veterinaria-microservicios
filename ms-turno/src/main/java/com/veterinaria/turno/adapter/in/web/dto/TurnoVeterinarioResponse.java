@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * Veterinario asignado a un turno con su rol.
- * Por ahora solo el id: el nombre se obtendra de ms-veterinario via Feign (Sprint 11).
+ * Solo el id: los datos del veterinario (nombre, especialidad) se consultan en ms-veterinario.
  */
 @Data
 @NoArgsConstructor

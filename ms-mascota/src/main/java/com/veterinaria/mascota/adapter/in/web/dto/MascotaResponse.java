@@ -10,7 +10,7 @@ import java.time.LocalDate;
 
 /**
  * DTO de SALIDA de Mascota: lo que la API devuelve al cliente.
- * Este es el JSON que ms-turno consumira via Feign.
+ * Este es el JSON que ms-turno consume via Feign para validar que exista.
  */
 @Data
 @NoArgsConstructor

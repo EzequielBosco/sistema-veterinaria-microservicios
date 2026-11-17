@@ -2,7 +2,9 @@ package com.veterinaria.mascota.adapter.in.web;
 
 import com.veterinaria.mascota.domain.exception.BadRequestException;
 import com.veterinaria.mascota.domain.exception.CupoMascotasExcedidoException;
+import com.veterinaria.mascota.domain.exception.DuenioNotFoundException;
 import com.veterinaria.mascota.domain.exception.MascotaNotFoundException;
+import feign.FeignException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +29,24 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> manejarNoEncontrada(MascotaNotFoundException ex,
                                                              HttpServletRequest request) {
         return construir(HttpStatus.NOT_FOUND, ex.getMessage(), request);
+    }
+
+    /** El duenio referenciado no existe en ms-duenio -> 404 Not Found */
+    @ExceptionHandler(DuenioNotFoundException.class)
+    public ResponseEntity<ErrorResponse> manejarDuenio(DuenioNotFoundException ex,
+                                                       HttpServletRequest request) {
+        return construir(HttpStatus.NOT_FOUND, ex.getMessage(), request);
+    }
+
+    /**
+     * Fallo en la comunicacion Feign con ms-duenio (caido, sin instancias en Eureka, timeout o 5xx)
+     * -> 503 Service Unavailable. El 404 remoto no llega aca: lo traduce el DuenioFeignAdapter.
+     */
+    @ExceptionHandler(FeignException.class)
+    public ResponseEntity<ErrorResponse> manejarFeign(FeignException ex,
+                                                      HttpServletRequest request) {
+        return construir(HttpStatus.SERVICE_UNAVAILABLE,
+                "Servicio remoto no disponible: " + ex.getMessage(), request);
     }
 
     /** Duenio con el cupo de mascotas completo -> 422 Unprocessable Entity */

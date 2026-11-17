@@ -2,13 +2,17 @@ package com.veterinaria.turno.application;
 
 import com.veterinaria.turno.domain.exception.BadRequestException;
 import com.veterinaria.turno.domain.exception.EstadoTurnoInvalidoException;
+import com.veterinaria.turno.domain.exception.MascotaNotFoundException;
 import com.veterinaria.turno.domain.exception.TurnoNotFoundException;
 import com.veterinaria.turno.domain.exception.TurnoSuperpuestoException;
+import com.veterinaria.turno.domain.exception.VeterinarioNotFoundException;
 import com.veterinaria.turno.domain.model.EstadoTurno;
 import com.veterinaria.turno.domain.model.Participacion;
 import com.veterinaria.turno.domain.model.RolVeterinario;
 import com.veterinaria.turno.domain.model.Turno;
+import com.veterinaria.turno.domain.port.out.MascotaServicePort;
 import com.veterinaria.turno.domain.port.out.TurnoRepositoryPort;
+import com.veterinaria.turno.domain.port.out.VeterinarioServicePort;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -27,6 +31,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,6 +42,12 @@ class TurnoServiceImplTest {
     @Mock
     private TurnoRepositoryPort turnoRepository;
 
+    @Mock
+    private MascotaServicePort mascotaService;
+
+    @Mock
+    private VeterinarioServicePort veterinarioService;
+
     @InjectMocks
     private TurnoServiceImpl turnoService;
 
@@ -44,13 +55,51 @@ class TurnoServiceImplTest {
     void registrar_cuandoEsValido_guardaTurnoPendiente() {
         Turno turno = crearTurno(LocalTime.of(10, 0), 30);
         turno.agregarParticipacion(2L, RolVeterinario.PRINCIPAL);
+        referenciasExistentes();
         when(turnoRepository.buscarPorVeterinarioYFecha(2L, FECHA)).thenReturn(List.of());
         when(turnoRepository.guardar(turno)).thenReturn(turno);
 
         Turno resultado = turnoService.registrar(turno);
 
         assertThat(resultado.getEstado()).isEqualTo(EstadoTurno.PENDIENTE);
+        verify(mascotaService).existsById(1L);
+        verify(veterinarioService).existsById(2L);
         verify(turnoRepository).guardar(turno);
+    }
+
+    @Test
+    void registrar_conMascotaInexistente_lanzaMascotaNotFoundExceptionYNoGuarda() {
+        Turno turno = crearTurno(LocalTime.of(10, 0), 30);
+        turno.agregarParticipacion(2L, RolVeterinario.PRINCIPAL);
+        when(mascotaService.existsById(1L)).thenReturn(false);
+
+        assertThrows(MascotaNotFoundException.class, () -> turnoService.registrar(turno));
+        verify(veterinarioService, never()).existsById(anyLong());
+        verify(turnoRepository, never()).guardar(any(Turno.class));
+    }
+
+    @Test
+    void registrar_conVeterinarioInexistente_lanzaVeterinarioNotFoundExceptionYNoGuarda() {
+        Turno turno = crearTurno(LocalTime.of(10, 0), 30);
+        turno.agregarParticipacion(2L, RolVeterinario.PRINCIPAL);
+        turno.agregarParticipacion(3L, RolVeterinario.ASISTENTE);
+        when(mascotaService.existsById(1L)).thenReturn(true);
+        // Las participaciones son un Set: el orden de consulta no esta garantizado. Solo el 3 no existe.
+        when(veterinarioService.existsById(anyLong())).thenAnswer(inv -> !Long.valueOf(3L).equals(inv.getArgument(0)));
+
+        VeterinarioNotFoundException ex = assertThrows(VeterinarioNotFoundException.class,
+                () -> turnoService.registrar(turno));
+        assertThat(ex.getMessage()).contains("id 3");
+        verify(turnoRepository, never()).guardar(any(Turno.class));
+    }
+
+    @Test
+    void registrar_conRequestInvalido_noConsultaOtrosMicroservicios() {
+        Turno turno = crearTurno(LocalTime.of(10, 0), 5);
+        turno.agregarParticipacion(2L, RolVeterinario.PRINCIPAL);
+
+        assertThrows(BadRequestException.class, () -> turnoService.registrar(turno));
+        verifyNoInteractions(mascotaService, veterinarioService);
     }
 
     @Test
@@ -101,6 +150,7 @@ class TurnoServiceImplTest {
         existente.setId(1L);
         Turno nuevo = crearTurno(LocalTime.of(10, 15), 30);
         nuevo.agregarParticipacion(2L, RolVeterinario.PRINCIPAL);
+        referenciasExistentes();
         when(turnoRepository.buscarPorVeterinarioYFecha(2L, FECHA)).thenReturn(List.of(existente));
 
         assertThrows(TurnoSuperpuestoException.class, () -> turnoService.registrar(nuevo));
@@ -113,6 +163,7 @@ class TurnoServiceImplTest {
         existente.setId(1L);
         Turno nuevo = crearTurno(LocalTime.of(10, 30), 30);
         nuevo.agregarParticipacion(2L, RolVeterinario.PRINCIPAL);
+        referenciasExistentes();
         when(turnoRepository.buscarPorVeterinarioYFecha(2L, FECHA)).thenReturn(List.of(existente));
         when(turnoRepository.guardar(nuevo)).thenReturn(nuevo);
 
@@ -127,6 +178,7 @@ class TurnoServiceImplTest {
         Turno cambios = crearTurno(LocalTime.of(10, 10), 30);
         cambios.agregarParticipacion(2L, RolVeterinario.PRINCIPAL);
         cambios.agregarParticipacion(3L, RolVeterinario.ASISTENTE);
+        referenciasExistentes();
         when(turnoRepository.buscarPorId(1L)).thenReturn(existente);
         when(turnoRepository.buscarPorVeterinarioYFecha(2L, FECHA)).thenReturn(List.of(existente));
         when(turnoRepository.buscarPorVeterinarioYFecha(3L, FECHA)).thenReturn(List.of());
@@ -146,6 +198,22 @@ class TurnoServiceImplTest {
         when(turnoRepository.buscarPorId(99L)).thenReturn(null);
 
         assertThrows(TurnoNotFoundException.class, () -> turnoService.actualizar(99L, cambios));
+        verifyNoInteractions(mascotaService, veterinarioService);
+    }
+
+    @Test
+    void actualizar_conMascotaInexistente_lanzaMascotaNotFoundExceptionYNoGuarda() {
+        Turno existente = crearTurno(LocalTime.of(10, 0), 30);
+        existente.setId(1L);
+        Turno cambios = crearTurno(LocalTime.of(11, 0), 30);
+        cambios.setMascotaId(50L);
+        cambios.agregarParticipacion(2L, RolVeterinario.PRINCIPAL);
+        when(turnoRepository.buscarPorId(1L)).thenReturn(existente);
+        when(mascotaService.existsById(50L)).thenReturn(false);
+
+        assertThrows(MascotaNotFoundException.class, () -> turnoService.actualizar(1L, cambios));
+        assertThat(existente.getMascotaId()).isEqualTo(1L);
+        verify(turnoRepository, never()).guardar(any(Turno.class));
     }
 
     @Test
@@ -184,6 +252,7 @@ class TurnoServiceImplTest {
         cancelado.setEstado(EstadoTurno.CANCELADO);
         Turno nuevo = crearTurno(LocalTime.of(10, 0), 30);
         nuevo.agregarParticipacion(2L, RolVeterinario.PRINCIPAL);
+        referenciasExistentes();
         when(turnoRepository.buscarPorVeterinarioYFecha(2L, FECHA)).thenReturn(List.of(cancelado));
         when(turnoRepository.guardar(nuevo)).thenReturn(nuevo);
 
@@ -240,6 +309,12 @@ class TurnoServiceImplTest {
 
         assertThrows(TurnoNotFoundException.class, () -> turnoService.eliminarPorId(99L));
         verify(turnoRepository, never()).eliminarPorId(anyLong());
+    }
+
+    /** La mascota y los veterinarios del turno existen en sus microservicios. */
+    private void referenciasExistentes() {
+        when(mascotaService.existsById(anyLong())).thenReturn(true);
+        when(veterinarioService.existsById(anyLong())).thenReturn(true);
     }
 
     private Turno crearTurno(LocalTime hora, int duracionMinutos) {

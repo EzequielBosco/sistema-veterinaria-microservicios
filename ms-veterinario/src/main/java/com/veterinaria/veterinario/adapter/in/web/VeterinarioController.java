@@ -20,7 +20,7 @@ import java.util.List;
 
 /**
  * Adaptador de ENTRADA: traduce HTTP -> llamadas al dominio.
- * El endpoint GET /api/veterinarios/{id} es el que ms-turno consumira via Feign.
+ * El endpoint GET /api/veterinarios/{id} es el que ms-turno consume via Feign para validar que exista.
  */
 @Tag(name = "Veterinarios", description = "Gestión de veterinarios")
 @RestController

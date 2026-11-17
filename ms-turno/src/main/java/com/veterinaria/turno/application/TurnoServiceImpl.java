@@ -2,14 +2,18 @@ package com.veterinaria.turno.application;
 
 import com.veterinaria.turno.domain.exception.BadRequestException;
 import com.veterinaria.turno.domain.exception.EstadoTurnoInvalidoException;
+import com.veterinaria.turno.domain.exception.MascotaNotFoundException;
 import com.veterinaria.turno.domain.exception.TurnoNotFoundException;
 import com.veterinaria.turno.domain.exception.TurnoSuperpuestoException;
+import com.veterinaria.turno.domain.exception.VeterinarioNotFoundException;
 import com.veterinaria.turno.domain.model.EstadoTurno;
 import com.veterinaria.turno.domain.model.Participacion;
 import com.veterinaria.turno.domain.model.RolVeterinario;
 import com.veterinaria.turno.domain.model.Turno;
 import com.veterinaria.turno.domain.port.in.TurnoService;
+import com.veterinaria.turno.domain.port.out.MascotaServicePort;
 import com.veterinaria.turno.domain.port.out.TurnoRepositoryPort;
+import com.veterinaria.turno.domain.port.out.VeterinarioServicePort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,7 +29,8 @@ import java.util.Set;
  * Lógica de negocio de Turno. Depende SOLO de puertos (in/out), nunca de adapter.*
  * Las reglas de veterinarios por turno y de superposicion se validan localmente:
  * turnos y participaciones viven en la misma BD.
- * La existencia de la mascota y de los veterinarios se validara via Feign (Sprint 11).
+ * La existencia de la mascota y de los veterinarios se valida contra ms-mascota y ms-veterinario
+ * a traves de los puertos MascotaServicePort y VeterinarioServicePort (implementados con Feign).
  */
 @Service
 @RequiredArgsConstructor
@@ -34,6 +39,9 @@ public class TurnoServiceImpl implements TurnoService {
     private static final Set<EstadoTurno> ESTADOS_CANCELABLES = Set.of(EstadoTurno.PENDIENTE, EstadoTurno.CONFIRMADO);
 
     private final TurnoRepositoryPort turnoRepository;
+    // Puertos hacia otros microservicios: el servicio no sabe que detras hay llamadas HTTP
+    private final MascotaServicePort mascotaService;
+    private final VeterinarioServicePort veterinarioService;
 
     @Override
     @Transactional(readOnly = true)
@@ -86,6 +94,7 @@ public class TurnoServiceImpl implements TurnoService {
     @Transactional
     public Turno registrar(Turno turno) {
         validarTurno(turno);
+        validarReferencias(turno);
         validarDisponibilidad(turno, null);
         // Regla de negocio: todo turno nace PENDIENTE
         turno.setEstado(EstadoTurno.PENDIENTE);
@@ -97,6 +106,7 @@ public class TurnoServiceImpl implements TurnoService {
     public Turno actualizar(Long id, Turno turno) {
         validarTurno(turno);
         Turno existente = buscarPorId(id);
+        validarReferencias(turno);
         validarDisponibilidad(turno, id);
 
         existente.setFecha(turno.getFecha());
@@ -165,6 +175,21 @@ public class TurnoServiceImpl implements TurnoService {
                 .count();
         if (cantidadPrincipales != 1) {
             throw new BadRequestException("Debe indicar exactamente un veterinario con rol PRINCIPAL");
+        }
+    }
+
+    /**
+     * Validacion cruzada: la mascota y los veterinarios viven en OTROS microservicios.
+     * Se ejecuta despues de las validaciones locales para no hacer llamadas HTTP con un request invalido.
+     */
+    private void validarReferencias(Turno turno) {
+        if (!mascotaService.existsById(turno.getMascotaId())) {
+            throw new MascotaNotFoundException(turno.getMascotaId());
+        }
+        for (Participacion participacion : turno.getParticipaciones()) {
+            if (!veterinarioService.existsById(participacion.getVeterinarioId())) {
+                throw new VeterinarioNotFoundException(participacion.getVeterinarioId());
+            }
         }
     }
 

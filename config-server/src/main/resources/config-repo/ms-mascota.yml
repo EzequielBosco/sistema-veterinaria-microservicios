@@ -5,6 +5,12 @@ spring:
     password: root
     driver-class-name: com.mysql.cj.jdbc.Driver
 
+# Timeouts y compresion de Feign: en el application.yml compartido (aplican a ms-turno y ms-mascota)
+logging:
+  level:
+    # Loguea las llamadas a ms-duenio (requiere logger-level distinto de none)
+    com.veterinaria.mascota.adapter.out.feign: DEBUG
+
 info:
   app:
     name: ms-mascota

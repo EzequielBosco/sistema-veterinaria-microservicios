@@ -21,7 +21,7 @@ import java.util.List;
 /**
  * Adaptador de ENTRADA (driving adapter): traduce HTTP -> llamadas al dominio.
  * Depende de la interface MascotaService (puerto de entrada), NUNCA de MascotaServiceImpl.
- * El endpoint GET /api/mascotas/{id} es el que ms-turno consumira via Feign.
+ * El endpoint GET /api/mascotas/{id} es el que ms-turno consume via Feign para validar que exista.
  */
 @Tag(name = "Mascotas", description = "Gestión de mascotas registradas en el sistema")
 @RestController

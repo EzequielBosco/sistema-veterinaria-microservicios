@@ -2,8 +2,11 @@ package com.veterinaria.turno.adapter.in.web;
 
 import com.veterinaria.turno.domain.exception.BadRequestException;
 import com.veterinaria.turno.domain.exception.EstadoTurnoInvalidoException;
+import com.veterinaria.turno.domain.exception.MascotaNotFoundException;
 import com.veterinaria.turno.domain.exception.TurnoNotFoundException;
 import com.veterinaria.turno.domain.exception.TurnoSuperpuestoException;
+import com.veterinaria.turno.domain.exception.VeterinarioNotFoundException;
+import feign.FeignException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +29,32 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> manejarTurno(TurnoNotFoundException ex,
                                                       HttpServletRequest request) {
         return construir(HttpStatus.NOT_FOUND, ex.getMessage(), request);
+    }
+
+    /** La mascota referenciada no existe en ms-mascota -> 404 Not Found */
+    @ExceptionHandler(MascotaNotFoundException.class)
+    public ResponseEntity<ErrorResponse> manejarMascota(MascotaNotFoundException ex,
+                                                        HttpServletRequest request) {
+        return construir(HttpStatus.NOT_FOUND, ex.getMessage(), request);
+    }
+
+    /** Algun veterinario referenciado no existe en ms-veterinario -> 404 Not Found */
+    @ExceptionHandler(VeterinarioNotFoundException.class)
+    public ResponseEntity<ErrorResponse> manejarVeterinario(VeterinarioNotFoundException ex,
+                                                            HttpServletRequest request) {
+        return construir(HttpStatus.NOT_FOUND, ex.getMessage(), request);
+    }
+
+    /**
+     * Fallo en la comunicacion Feign (servicio remoto caido, sin instancias en Eureka, timeout
+     * o error 5xx del otro microservicio) -> 503 Service Unavailable.
+     * El 404 remoto no llega aca: lo traducen los adaptadores Feign a "no existe".
+     */
+    @ExceptionHandler(FeignException.class)
+    public ResponseEntity<ErrorResponse> manejarFeign(FeignException ex,
+                                                      HttpServletRequest request) {
+        return construir(HttpStatus.SERVICE_UNAVAILABLE,
+                "Servicio remoto no disponible: " + ex.getMessage(), request);
     }
 
     /** Un veterinario ya tiene otro turno en ese horario -> 409 Conflict */

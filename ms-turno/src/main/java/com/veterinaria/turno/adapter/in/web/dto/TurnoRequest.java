@@ -20,7 +20,7 @@ import java.util.List;
 /**
  * DTO de ENTRADA de Turno: lo que el cliente HTTP envia al registrar/actualizar un turno.
  * mascotaId y veterinarioId son referencias por ID a OTROS microservicios:
- * su existencia se validara via Feign en el Sprint 11.
+ * ms-turno valida que existan consultando a ms-mascota y ms-veterinario via Feign.
  */
 @Data
 @NoArgsConstructor

@@ -2,9 +2,11 @@ package com.veterinaria.mascota.application;
 
 import com.veterinaria.mascota.domain.exception.BadRequestException;
 import com.veterinaria.mascota.domain.exception.CupoMascotasExcedidoException;
+import com.veterinaria.mascota.domain.exception.DuenioNotFoundException;
 import com.veterinaria.mascota.domain.exception.MascotaNotFoundException;
 import com.veterinaria.mascota.domain.model.Mascota;
 import com.veterinaria.mascota.domain.port.in.MascotaService;
+import com.veterinaria.mascota.domain.port.out.DuenioServicePort;
 import com.veterinaria.mascota.domain.port.out.MascotaRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,7 +17,8 @@ import java.util.List;
 /**
  * Lógica de negocio de Mascota. Depende SOLO de puertos (in/out), nunca de adapter.*
  * El cupo de mascotas por duenio se valida localmente: las mascotas viven en esta BD.
- * La existencia del duenio se validara contra ms-duenio via Feign (Sprint 11).
+ * La existencia del duenio se valida contra ms-duenio a traves del puerto DuenioServicePort
+ * (implementado con Feign), despues de las validaciones locales.
  */
 @Service
 @RequiredArgsConstructor
@@ -24,6 +27,8 @@ public class MascotaServiceImpl implements MascotaService {
     private static final int MAX_MASCOTAS_POR_DUENIO = 5;
 
     private final MascotaRepositoryPort mascotaRepository;
+    // Puerto hacia ms-duenio: el servicio no sabe que detras hay una llamada HTTP
+    private final DuenioServicePort duenioService;
 
     @Override
     public List<Mascota> listarTodos() {
@@ -51,6 +56,7 @@ public class MascotaServiceImpl implements MascotaService {
             throw new BadRequestException("Debe indicar el id del duenio de la mascota");
         }
         validarCupoMascotas(mascota.getDuenioId());
+        validarDuenioExistente(mascota.getDuenioId());
         return mascotaRepository.guardar(mascota);
     }
 
@@ -66,8 +72,10 @@ public class MascotaServiceImpl implements MascotaService {
         existente.setFechaNacimiento(mascota.getFechaNacimiento());
 
         if (mascota.getDuenioId() != null) {
+            // Solo si cambia de duenio: editar los datos de la mascota no depende de ms-duenio
             if (!mascota.getDuenioId().equals(existente.getDuenioId())) {
                 validarCupoMascotas(mascota.getDuenioId());
+                validarDuenioExistente(mascota.getDuenioId());
             }
             existente.setDuenioId(mascota.getDuenioId());
         }
@@ -85,6 +93,13 @@ public class MascotaServiceImpl implements MascotaService {
         long cantidadMascotas = mascotaRepository.contarPorDuenioId(duenioId);
         if (cantidadMascotas >= MAX_MASCOTAS_POR_DUENIO) {
             throw new CupoMascotasExcedidoException(duenioId, cantidadMascotas, MAX_MASCOTAS_POR_DUENIO);
+        }
+    }
+
+    /** Validacion cruzada: el duenio vive en OTRO microservicio (ms-duenio). */
+    private void validarDuenioExistente(Long duenioId) {
+        if (!duenioService.existsById(duenioId)) {
+            throw new DuenioNotFoundException(duenioId);
         }
     }
 }
