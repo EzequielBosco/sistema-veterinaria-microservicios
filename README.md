@@ -5,38 +5,42 @@ Proyecto Maven multi-módulo, Spring Boot 4.1.1, Java 21, MySQL.
 
 ## Microservicios
 
-| Módulo | Puerto | Base de datos | Estado |
+| Módulo | Puerto | Base de datos | Entidades |
 |---|---|---|---|
-| `ms-duenio` | 8081 | `duenio_db` | Sprint 9 |
-| `ms-mascota` | 8082 | `mascota_db` | Sprint 10 |
-| `ms-veterinario` | 8083 | `veterinario_db` | Sprint 10 |
-| `ms-turno` | 8084 | `turno_db` | Sprint 10 |
+| `ms-duenio` | 8081 | `duenio_db` | Duenio |
+| `ms-mascota` | 8082 | `mascota_db` | Mascota |
+| `ms-veterinario` | 8083 | `veterinario_db` | Veterinario |
+| `ms-turno` | 8084 | `turno_db` | Turno, Participacion |
 
 Cada microservicio es dueño de sus datos y tiene su propia base de datos: no hay JOINs ni foreign keys
 entre bases de distintos servicios. Las referencias a otros contextos se guardan por ID (`Long`).
 
 ## Cómo ejecutar
 
-Requisitos: Java 21 y MySQL corriendo en `localhost:3306` (usuario/clave por defecto `root`/`root`,
-se pueden cambiar con las variables `DB_USER` y `DB_PASS`). La base `duenio_db` se crea sola
-(`createDatabaseIfNotExist=true`) y Hibernate genera la tabla `duenios`.
+Requisitos: Java 21 y MySQL corriendo en `localhost:3306` (usuario/clave `root`/`root`).
+Las bases se crean solas (`createDatabaseIfNotExist=true`) y Hibernate genera las tablas.
 
 ```bash
-# Compilar y testear desde la raíz
-./mvnw clean package -pl ms-duenio
+# Compilar y testear todos los módulos desde la raíz
+./mvnw clean package
 
-# Levantar
+# Levantar un microservicio
 ./mvnw spring-boot:run -pl ms-duenio
+./mvnw spring-boot:run -pl ms-mascota
+./mvnw spring-boot:run -pl ms-veterinario
+./mvnw spring-boot:run -pl ms-turno
 ```
 
-Swagger: http://localhost:8081/swagger-ui/index.html
+Swagger de cada servicio: `http://localhost:{puerto}/swagger-ui/index.html`
 
-### Endpoints de ms-duenio (`/api/duenios`)
+## Endpoints
+
+### ms-duenio (`/api/duenios`)
 
 | Método | Ruta | Descripción |
 |---|---|---|
 | GET | `/api/duenios` | Listar todos |
-| GET | `/api/duenios/{id}` | Buscar por ID (404 si no existe) |
+| GET | `/api/duenios/{id}` | Buscar por ID |
 | GET | `/api/duenios/cedula/{cedula}` | Buscar por cédula/DNI |
 | GET | `/api/duenios/email/{email}` | Buscar por email |
 | GET | `/api/duenios/search?nombre=&apellido=` | Buscar por nombre y apellido |
@@ -44,51 +48,94 @@ Swagger: http://localhost:8081/swagger-ui/index.html
 | PUT | `/api/duenios/{id}` | Actualizar |
 | DELETE | `/api/duenios/{id}` | Eliminar |
 
+### ms-mascota (`/api/mascotas`)
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/mascotas` | Listar todas |
+| GET | `/api/mascotas/{id}` | Buscar por ID |
+| GET | `/api/mascotas/duenio/{duenioId}` | Mascotas de un dueño |
+| POST | `/api/mascotas` | Crear (`duenioId` obligatorio; 422 si el dueño ya tiene 5 mascotas) |
+| PUT | `/api/mascotas/{id}` | Actualizar (valida el cupo si cambia de dueño) |
+| DELETE | `/api/mascotas/{id}` | Eliminar |
+
+### ms-veterinario (`/api/veterinarios`)
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/veterinarios` | Listar todos |
+| GET | `/api/veterinarios/{id}` | Buscar por ID |
+| POST | `/api/veterinarios` | Crear (409 si matrícula o email duplicados) |
+| PUT | `/api/veterinarios/{id}` | Actualizar |
+| DELETE | `/api/veterinarios/{id}` | Eliminar |
+
+### ms-turno (`/api/turnos`)
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/turnos` | Listar todos |
+| GET | `/api/turnos?veterinarioId=&fecha=` | Agenda de un veterinario en una fecha (ambos parámetros) |
+| GET | `/api/turnos/{id}` | Buscar por ID |
+| GET | `/api/turnos/{id}/veterinarios` | Veterinarios del turno con su rol |
+| GET | `/api/turnos/veterinario/{veterinarioId}` | Turnos de un veterinario con su rol |
+| POST | `/api/turnos` | Crear |
+| PUT | `/api/turnos/{id}` | Actualizar (reemplaza los veterinarios asignados) |
+| DELETE | `/api/turnos/{id}` | Eliminar |
+
+Reglas de turnos: fecha y hora futuras, duración mínima de 10 minutos, al menos un veterinario,
+exactamente uno con rol `PRINCIPAL`, sin veterinarios repetidos y sin superposición horaria
+para un mismo veterinario (409).
+
 ## Arquitectura
 
 Cada microservicio sigue **Arquitectura Hexagonal (Ports & Adapters)**:
 
 ```
-ms-duenio/src/main/java/com/veterinaria/duenio/
-├── domain/                         ZONA INTERNA - no depende de Spring
-│   ├── model/Duenio.java           entidad
-│   ├── port/in/DuenioService.java          puerto de entrada (casos de uso)
-│   ├── port/out/DuenioRepositoryPort.java  puerto de salida (persistencia)
-│   └── exception/                  excepciones de negocio
-├── application/                    ZONA MEDIA
-│   └── DuenioServiceImpl.java      implementa DuenioService usando DuenioRepositoryPort
-└── adapter/                        ZONA EXTERNA
-    ├── in/web/                     adaptador de entrada REST
-    │   ├── DuenioController.java
+ms-<servicio>/src/main/java/com/veterinaria/<servicio>/
+├── domain/                              ZONA INTERNA - reglas y contratos del negocio
+│   ├── model/                           entidades y enums
+│   ├── port/in/<X>Service.java          puerto de entrada (casos de uso)
+│   ├── port/out/<X>RepositoryPort.java  puerto de salida (persistencia)
+│   └── exception/                       excepciones de negocio
+├── application/                         ZONA MEDIA
+│   └── <X>ServiceImpl.java              implementa el puerto de entrada usando los de salida
+└── adapter/                             ZONA EXTERNA
+    ├── in/web/                          adaptador de entrada REST
+    │   ├── <X>Controller.java
     │   ├── GlobalExceptionHandler.java, ErrorResponse.java
-    │   └── dto/                    DuenioRequest, DuenioResponse, DuenioMapper (MapStruct)
+    │   └── dto/                         Request, Response y Mapper (manual)
     └── out/persistence/
-        └── DuenioJpaRepository.java   implementa DuenioRepositoryPort con Spring Data JPA
+        └── <X>Repository.java           Spring Data JPA, implementa <X>RepositoryPort
 ```
 
 **Regla de dependencias:** las dependencias siempre apuntan hacia adentro.
 
-- `domain` no conoce a nadie: los puertos son interfaces Java puras.
+- `domain` no depende de `application` ni de `adapter`: los puertos son interfaces Java puras,
+  sin Spring.
 - `application` solo conoce `domain` (no importa nada de `adapter.*`).
-- Los adaptadores conocen el dominio a través de los puertos.
+- Los adaptadores conocen el dominio y lo usan a través de los puertos. Que un adaptador dependa
+  del dominio está permitido; lo prohibido es la dirección inversa.
 
-### ¿Por qué el controller no usa `DuenioServiceImpl`?
-
-`DuenioController` inyecta la interface `DuenioService` (puerto de entrada), nunca la implementación:
-
-- **Desacoplamiento:** el adaptador web depende de un contrato, no de una clase concreta. La
-  implementación se puede reemplazar (otra lógica, un proxy, un mock en tests) sin tocar el controller.
-- **Regla de dependencias:** `DuenioServiceImpl` vive en `application`; si el adaptador la importara,
-  quedaría atado a un detalle de la capa interna en lugar de al puerto que el dominio expone.
-- **Testabilidad:** en los tests del controller se mockea `DuenioService` directamente.
-
-Por el mismo motivo el controller tampoco importa `domain.model`: recibe y devuelve DTOs, y la
-traducción DTO ↔ dominio la hace `DuenioMapper`, que vive en el adaptador de entrada.
+```
+HTTP ──▶ <X>Controller ──▶ <X>Service (port in)
+                                 ▲
+                          <X>ServiceImpl
+                                 │
+                      <X>RepositoryPort (port out)
+                                 ▲
+                         <X>Repository (JPA) ──▶ <servicio>_db
+```
 
 ### Decisiones de modelado respecto del monolito
 
 - **`Persona` se aplanó:** era un `@MappedSuperclass` (sin tabla propia) del que heredaban `Duenio` y
   `Veterinario`. Como los microservicios no comparten clases de dominio, sus campos (nombre, apellido,
   teléfono, email) se copian en cada entidad.
-- **`Duenio` ya no tiene la lista de mascotas:** esa relación pasa a `ms-mascota`, que guarda `duenioId`.
-- **Medicamento y Prescripción quedan fuera** del alcance de la versión en microservicios.
+- **Relaciones entre servicios por ID:** `Mascota.duenioId`, `Turno.mascotaId` y
+  `Participacion.veterinarioId` son `Long`, sin `@ManyToOne`. Se pierden las listas inversas
+  (`Duenio.mascotas`, `Mascota.turnos`, `Veterinario.participaciones`) y los borrados en cascada entre servicios.
+- **`Participacion` vive en ms-turno:** es la entidad intermedia del muchos a muchos Turno ↔ Veterinario
+  y su ciclo de vida depende del Turno. Así la regla de superposición se sigue validando localmente.
+- **Endpoints reubicados:** `GET /api/duenios/{id}/mascotas` pasa a `GET /api/mascotas/duenio/{duenioId}`,
+  `POST /api/duenios/{id}/mascotas` pasa a `POST /api/mascotas` con `duenioId` en el body y
+  `GET /api/veterinarios/{id}/turnos` pasa a `GET /api/turnos/veterinario/{veterinarioId}`.

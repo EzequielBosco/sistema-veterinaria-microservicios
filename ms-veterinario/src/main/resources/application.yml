@@ -1,0 +1,16 @@
+# ms-veterinario — configuracion local. En el Sprint 10 el datasource pasa al Config Server (config/ms-veterinario.yml)
+server:
+  port: 8083
+
+spring:
+  application:
+    name: ms-veterinario
+  datasource:
+    url: jdbc:mysql://localhost:3306/veterinario_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true

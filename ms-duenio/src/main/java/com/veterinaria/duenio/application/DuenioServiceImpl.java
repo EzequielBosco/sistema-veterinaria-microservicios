@@ -1,99 +1,100 @@
 package com.veterinaria.duenio.application;
 
 import com.veterinaria.duenio.domain.exception.DuenioNotFoundException;
-import com.veterinaria.duenio.domain.exception.DuplicatedCedulaException;
-import com.veterinaria.duenio.domain.exception.DuplicatedEmailException;
+import com.veterinaria.duenio.domain.exception.DuplicateCedulaException;
+import com.veterinaria.duenio.domain.exception.DuplicateEmailException;
 import com.veterinaria.duenio.domain.model.Duenio;
 import com.veterinaria.duenio.domain.port.in.DuenioService;
 import com.veterinaria.duenio.domain.port.out.DuenioRepositoryPort;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 /**
- * Casos de uso de Duenio. Depende solo de los puertos del dominio,
- * nunca de adapter.* (Dependency Rule).
+ * Lógica de negocio de Duenio. Depende SOLO de puertos (in/out), nunca de adapter.*
+ * Así se respeta la Dependency Rule de la arquitectura hexagonal.
  */
 @Service
+@RequiredArgsConstructor
 public class DuenioServiceImpl implements DuenioService {
 
     private final DuenioRepositoryPort duenioRepository;
 
-    public DuenioServiceImpl(DuenioRepositoryPort duenioRepository) {
-        this.duenioRepository = duenioRepository;
+    @Override
+    public List<Duenio> listarTodos() {
+        return duenioRepository.buscarTodos();
     }
 
     @Override
-    public List<Duenio> findAll() {
-        return duenioRepository.findAll();
+    public Duenio buscarPorId(Long id) {
+        Duenio duenio = duenioRepository.buscarPorId(id);
+        if (duenio == null) {
+            throw new DuenioNotFoundException(id);
+        }
+        return duenio;
     }
 
     @Override
-    public Duenio findById(Long id) {
-        return duenioRepository.findById(id)
-                .orElseThrow(() -> new DuenioNotFoundException("No existe un duenio con id " + id));
-    }
-
-    @Override
-    public Duenio findByCedula(String cedula) {
-        return duenioRepository.findByCedula(cedula)
+    public Duenio buscarPorCedula(String cedula) {
+        return duenioRepository.buscarPorCedula(cedula)
                 .orElseThrow(() -> new DuenioNotFoundException("No existe un duenio con cedula/DNI " + cedula));
     }
 
     @Override
-    public Duenio findByEmail(String email) {
-        return duenioRepository.findByEmail(email)
+    public Duenio buscarPorEmail(String email) {
+        return duenioRepository.buscarPorEmail(email)
                 .orElseThrow(() -> new DuenioNotFoundException("No existe un duenio con email " + email));
     }
 
     @Override
-    public List<Duenio> search(String nombre, String apellido) {
-        return duenioRepository.findByNombreAndApellido(nombre, apellido);
+    public List<Duenio> buscarPorNombreYApellido(String nombre, String apellido) {
+        return duenioRepository.buscarPorNombreYApellido(nombre, apellido);
     }
 
     @Override
     @Transactional
-    public Duenio save(Duenio duenio) {
+    public Duenio registrar(Duenio duenio) {
         normalizarEmail(duenio);
-        if (duenioRepository.existsByCedula(duenio.getCedula())) {
-            throw new DuplicatedCedulaException(duenio.getCedula());
+        if (duenioRepository.existePorCedula(duenio.getCedula())) {
+            throw new DuplicateCedulaException(duenio.getCedula());
         }
-        if (duenio.getEmail() != null && duenioRepository.existsByEmail(duenio.getEmail())) {
-            throw new DuplicatedEmailException(duenio.getEmail());
+        if (duenio.getEmail() != null && duenioRepository.existePorEmail(duenio.getEmail())) {
+            throw new DuplicateEmailException(duenio.getEmail());
         }
-        return duenioRepository.save(duenio);
+        return duenioRepository.guardar(duenio);
     }
 
     @Override
     @Transactional
-    public Duenio update(Long id, Duenio duenio) {
+    public Duenio actualizar(Long id, Duenio duenio) {
         normalizarEmail(duenio);
-        Duenio duenioExistente = findById(id);
+        Duenio existente = buscarPorId(id);
 
-        if (!duenioExistente.getCedula().equals(duenio.getCedula())
-                && duenioRepository.existsByCedula(duenio.getCedula())) {
-            throw new DuplicatedCedulaException(duenio.getCedula());
+        if (!existente.getCedula().equals(duenio.getCedula())
+                && duenioRepository.existePorCedula(duenio.getCedula())) {
+            throw new DuplicateCedulaException(duenio.getCedula());
         }
         if (duenio.getEmail() != null
-                && !duenio.getEmail().equals(duenioExistente.getEmail())
-                && duenioRepository.existsByEmail(duenio.getEmail())) {
-            throw new DuplicatedEmailException(duenio.getEmail());
+                && !duenio.getEmail().equals(existente.getEmail())
+                && duenioRepository.existePorEmail(duenio.getEmail())) {
+            throw new DuplicateEmailException(duenio.getEmail());
         }
 
-        duenioExistente.setNombre(duenio.getNombre());
-        duenioExistente.setApellido(duenio.getApellido());
-        duenioExistente.setTelefono(duenio.getTelefono());
-        duenioExistente.setEmail(duenio.getEmail());
-        duenioExistente.setCedula(duenio.getCedula());
-        return duenioRepository.save(duenioExistente);
+        existente.setNombre(duenio.getNombre());
+        existente.setApellido(duenio.getApellido());
+        existente.setTelefono(duenio.getTelefono());
+        existente.setEmail(duenio.getEmail());
+        existente.setCedula(duenio.getCedula());
+        return duenioRepository.guardar(existente);
     }
 
     @Override
     @Transactional
-    public void deleteById(Long id) {
-        findById(id);
-        duenioRepository.deleteById(id);
+    public void eliminarPorId(Long id) {
+        buscarPorId(id); // valida que exista antes de eliminar
+        duenioRepository.eliminarPorId(id);
     }
 
     private void normalizarEmail(Duenio duenio) {

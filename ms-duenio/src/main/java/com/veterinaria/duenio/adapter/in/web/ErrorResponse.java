@@ -1,18 +1,16 @@
 package com.veterinaria.duenio.adapter.in.web;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-
 import java.time.LocalDateTime;
 
-@Getter
-@NoArgsConstructor
-@AllArgsConstructor
-public class ErrorResponse {
-    private LocalDateTime timestamp;
-    private int status;
-    private String error;
-    private String mensaje;
-    private String path;
+/**
+ * Cuerpo estandar de error que devuelve la API ante cualquier excepcion.
+ * Misma forma en todos los microservicios: facilita el consumo desde el cliente.
+ */
+public record ErrorResponse(
+        LocalDateTime timestamp,
+        int status,
+        String error,
+        String mensaje,
+        String path
+) {
 }

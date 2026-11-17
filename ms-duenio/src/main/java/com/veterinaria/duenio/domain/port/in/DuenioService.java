@@ -4,25 +4,14 @@ import com.veterinaria.duenio.domain.model.Duenio;
 
 import java.util.List;
 
-/**
- * Puerto de entrada: define QUE se puede hacer con los duenios, no COMO.
- * Lo consumen los adaptadores de entrada (controller) y lo implementa la capa application.
- */
+/** Puerto de entrada: el contrato de casos de uso de Duenio (qué, no cómo). */
 public interface DuenioService {
-
-    List<Duenio> findAll();
-
-    Duenio findById(Long id);
-
-    Duenio findByCedula(String cedula);
-
-    Duenio findByEmail(String email);
-
-    List<Duenio> search(String nombre, String apellido);
-
-    Duenio save(Duenio duenio);
-
-    Duenio update(Long id, Duenio duenio);
-
-    void deleteById(Long id);
+    List<Duenio> listarTodos();
+    Duenio buscarPorId(Long id);
+    Duenio buscarPorCedula(String cedula);
+    Duenio buscarPorEmail(String email);
+    List<Duenio> buscarPorNombreYApellido(String nombre, String apellido);
+    Duenio registrar(Duenio duenio);
+    Duenio actualizar(Long id, Duenio duenio);
+    void eliminarPorId(Long id);
 }

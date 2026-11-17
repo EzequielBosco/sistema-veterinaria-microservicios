@@ -14,21 +14,14 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 /**
- * Adaptador de entrada REST. Solo conoce el puerto DuenioService (la interface)
- * y los DTOs: no importa DuenioServiceImpl ni domain.model.
+ * Adaptador de ENTRADA (driving adapter): traduce HTTP -> llamadas al dominio.
+ * Depende de la interface DuenioService (puerto de entrada), NUNCA de DuenioServiceImpl,
+ * y no importa domain.model: solo maneja DTOs y delega la traduccion en DuenioMapper.
  */
 @Tag(name = "Dueños", description = "Gestión de dueños")
 @RestController
@@ -37,13 +30,14 @@ import java.util.List;
 public class DuenioController {
 
     private final DuenioService duenioService;
-    private final DuenioMapper duenioMapper;
 
     @Operation(summary = "Listar todos los dueños", description = "Retorna la lista completa de dueños registrados")
-    @ApiResponse(responseCode = "200", description = "Lista obtenida exitosamente")
     @GetMapping
-    public ResponseEntity<List<DuenioResponse>> getAllDuenios() {
-        return ResponseEntity.ok(duenioMapper.toResponseList(duenioService.findAll()));
+    public ResponseEntity<List<DuenioResponse>> listarTodos() {
+        List<DuenioResponse> respuesta = duenioService.listarTodos().stream()
+                .map(DuenioMapper::toResponse)
+                .toList();
+        return ResponseEntity.ok(respuesta);
     }
 
     @Operation(summary = "Obtener dueño por ID", description = "Retorna los datos de un dueño a partir de su ID")
@@ -53,8 +47,8 @@ public class DuenioController {
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping("/{id}")
-    public ResponseEntity<DuenioResponse> getDuenioById(@PathVariable Long id) {
-        return ResponseEntity.ok(duenioMapper.toResponse(duenioService.findById(id)));
+    public ResponseEntity<DuenioResponse> buscarPorId(@PathVariable Long id) {
+        return ResponseEntity.ok(DuenioMapper.toResponse(duenioService.buscarPorId(id)));
     }
 
     @Operation(summary = "Obtener dueño por cédula", description = "Retorna los datos de un dueño buscando por su número de cédula o DNI")
@@ -64,8 +58,8 @@ public class DuenioController {
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping("/cedula/{cedula}")
-    public ResponseEntity<DuenioResponse> getDuenioByCedula(@PathVariable String cedula) {
-        return ResponseEntity.ok(duenioMapper.toResponse(duenioService.findByCedula(cedula)));
+    public ResponseEntity<DuenioResponse> buscarPorCedula(@PathVariable String cedula) {
+        return ResponseEntity.ok(DuenioMapper.toResponse(duenioService.buscarPorCedula(cedula)));
     }
 
     @Operation(summary = "Obtener dueño por email", description = "Retorna los datos de un dueño buscando por su correo electrónico")
@@ -75,17 +69,18 @@ public class DuenioController {
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @GetMapping("/email/{email}")
-    public ResponseEntity<DuenioResponse> getDuenioByEmail(@PathVariable String email) {
-        return ResponseEntity.ok(duenioMapper.toResponse(duenioService.findByEmail(email)));
+    public ResponseEntity<DuenioResponse> buscarPorEmail(@PathVariable String email) {
+        return ResponseEntity.ok(DuenioMapper.toResponse(duenioService.buscarPorEmail(email)));
     }
 
     @Operation(summary = "Buscar dueños por nombre y apellido", description = "Retorna los dueños cuyo nombre y apellido coincidan con los parámetros de búsqueda")
-    @ApiResponse(responseCode = "200", description = "Búsqueda realizada exitosamente")
     @GetMapping("/search")
-    public ResponseEntity<List<DuenioResponse>> searchDuenios(
-            @RequestParam String nombre,
-            @RequestParam String apellido) {
-        return ResponseEntity.ok(duenioMapper.toResponseList(duenioService.search(nombre, apellido)));
+    public ResponseEntity<List<DuenioResponse>> buscarPorNombreYApellido(@RequestParam String nombre,
+                                                                         @RequestParam String apellido) {
+        List<DuenioResponse> respuesta = duenioService.buscarPorNombreYApellido(nombre, apellido).stream()
+                .map(DuenioMapper::toResponse)
+                .toList();
+        return ResponseEntity.ok(respuesta);
     }
 
     @Operation(
@@ -100,9 +95,9 @@ public class DuenioController {
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PostMapping
-    public ResponseEntity<DuenioResponse> createDuenio(@Valid @RequestBody DuenioRequest duenioRequest) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(duenioMapper.toResponse(duenioService.save(duenioMapper.toDomain(duenioRequest))));
+    public ResponseEntity<DuenioResponse> registrar(@Valid @RequestBody DuenioRequest request) {
+        DuenioResponse creado = DuenioMapper.toResponse(duenioService.registrar(DuenioMapper.toEntity(request)));
+        return ResponseEntity.status(HttpStatus.CREATED).body(creado);
     }
 
     @Operation(
@@ -119,10 +114,9 @@ public class DuenioController {
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @PutMapping("/{id}")
-    public ResponseEntity<DuenioResponse> updateDuenio(
-            @PathVariable Long id,
-            @Valid @RequestBody DuenioRequest duenioRequest) {
-        return ResponseEntity.ok(duenioMapper.toResponse(duenioService.update(id, duenioMapper.toDomain(duenioRequest))));
+    public ResponseEntity<DuenioResponse> actualizar(@PathVariable Long id,
+                                                     @Valid @RequestBody DuenioRequest request) {
+        return ResponseEntity.ok(DuenioMapper.toResponse(duenioService.actualizar(id, DuenioMapper.toEntity(request))));
     }
 
     @Operation(summary = "Eliminar dueño", description = "Elimina un dueño del sistema a partir de su ID")
@@ -132,8 +126,8 @@ public class DuenioController {
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     })
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteDuenio(@PathVariable Long id) {
-        duenioService.deleteById(id);
+    public ResponseEntity<Void> eliminarPorId(@PathVariable Long id) {
+        duenioService.eliminarPorId(id);
         return ResponseEntity.noContent().build();
     }
 }

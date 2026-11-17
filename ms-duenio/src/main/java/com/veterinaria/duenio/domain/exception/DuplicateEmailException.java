@@ -1,8 +1,7 @@
 package com.veterinaria.duenio.domain.exception;
 
-public class DuplicatedEmailException extends RuntimeException {
-
-    public DuplicatedEmailException(String email) {
+public class DuplicateEmailException extends RuntimeException {
+    public DuplicateEmailException(String email) {
         super("El email " + email + " ya esta registrado");
     }
 }
