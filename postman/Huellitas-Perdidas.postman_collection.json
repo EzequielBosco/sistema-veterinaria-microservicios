@@ -1,0 +1,577 @@
+{
+  "info": {
+    "_postman_id": "8f3c2a1e-5b7d-4c9e-a1f2-3d4e5f6a7b8c",
+    "name": "Huellitas Perdidas · Microservicios",
+    "description": "Endpoints del sistema veterinario en microservicios.\n\n**Requisito:** todo el sistema levantado en orden: config-server → eureka-server → ms-duenio, ms-mascota, ms-veterinario, ms-turno → api-gateway (y esperar ~30 s a que se registren en Eureka).\n\n**Todas las llamadas de negocio pasan por el API Gateway** (`{{gateway}}` = http://localhost:8080). La carpeta *Infraestructura* consulta directo a Eureka, Config Server y Actuator.\n\n**Uso:** se puede ejecutar completa con el *Collection Runner*: las carpetas están en orden (crear → consultar → actualizar → errores → limpiar). Los IDs creados se guardan en variables de la colección y el DNI, email, matrícula y fecha del turno se generan al azar en cada corrida para no chocar con datos existentes. Cada request tiene un test que valida el código HTTP esperado.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "gateway", "value": "http://localhost:8080" },
+    { "key": "eureka", "value": "http://localhost:8761" },
+    { "key": "configServer", "value": "http://localhost:8888" },
+    { "key": "msTurno", "value": "http://localhost:8084" },
+    { "key": "duenioId", "value": "" },
+    { "key": "mascotaId", "value": "" },
+    { "key": "veterinarioId", "value": "" },
+    { "key": "turnoId", "value": "" },
+    { "key": "turnoSuperposicionId", "value": "" },
+    { "key": "cedula", "value": "" },
+    { "key": "email", "value": "" },
+    { "key": "matricula", "value": "" },
+    { "key": "fechaTurno", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Dueños (ms-duenio)",
+      "item": [
+        {
+          "name": "Crear dueño",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": { "type": "text/javascript", "exec": [
+                "// DNI y email únicos en cada corrida (ms-duenio no permite duplicados)",
+                "const n = Math.floor(Math.random() * 90000000) + 10000000;",
+                "pm.collectionVariables.set(\"cedula\", String(n));",
+                "pm.collectionVariables.set(\"email\", `juan.${n}@mail.com`);"
+              ] }
+            },
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": [
+                "pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+                "pm.collectionVariables.set(\"duenioId\", pm.response.json().id);"
+              ] }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Juan\",\n  \"apellido\": \"Perez\",\n  \"cedula\": \"{{cedula}}\",\n  \"telefono\": \"+54 11 1234-5678\",\n  \"email\": \"{{email}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{gateway}}/api/duenios", "host": ["{{gateway}}"], "path": ["api", "duenios"] }
+          }
+        },
+        {
+          "name": "Listar dueños",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+            "pm.test(\"Devuelve una lista\", () => pm.expect(pm.response.json()).to.be.an(\"array\"));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway}}/api/duenios", "host": ["{{gateway}}"], "path": ["api", "duenios"] } }
+        },
+        {
+          "name": "Buscar dueño por ID",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+            "pm.test(\"Es el dueño creado\", () => pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get(\"duenioId\"))));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway}}/api/duenios/{{duenioId}}", "host": ["{{gateway}}"], "path": ["api", "duenios", "{{duenioId}}"] } }
+        },
+        {
+          "name": "Buscar dueño por cédula/DNI",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+            "pm.test(\"Coincide la cédula\", () => pm.expect(pm.response.json().cedula).to.eql(pm.collectionVariables.get(\"cedula\")));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway}}/api/duenios/cedula/{{cedula}}", "host": ["{{gateway}}"], "path": ["api", "duenios", "cedula", "{{cedula}}"] } }
+        },
+        {
+          "name": "Buscar dueño por email",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway}}/api/duenios/email/{{email}}", "host": ["{{gateway}}"], "path": ["api", "duenios", "email", "{{email}}"] } }
+        },
+        {
+          "name": "Buscar dueños por nombre y apellido",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+            "pm.test(\"Incluye al dueño creado\", () => {",
+            "  const id = Number(pm.collectionVariables.get(\"duenioId\"));",
+            "  pm.expect(pm.response.json().map(d => d.id)).to.include(id);",
+            "});"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway}}/api/duenios/search?nombre=Juan&apellido=Perez", "host": ["{{gateway}}"], "path": ["api", "duenios", "search"], "query": [{ "key": "nombre", "value": "Juan" }, { "key": "apellido", "value": "Perez" }] } }
+        },
+        {
+          "name": "Actualizar dueño",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+            "pm.test(\"Teléfono actualizado\", () => pm.expect(pm.response.json().telefono).to.eql(\"1144445555\"));"
+          ] } }],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Juan\",\n  \"apellido\": \"Perez\",\n  \"cedula\": \"{{cedula}}\",\n  \"telefono\": \"1144445555\",\n  \"email\": \"{{email}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{gateway}}/api/duenios/{{duenioId}}", "host": ["{{gateway}}"], "path": ["api", "duenios", "{{duenioId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Mascotas (ms-mascota)",
+      "description": "Al crear una mascota (o cambiarla de dueño) ms-mascota valida contra ms-duenio vía Feign que el dueño exista, y que no supere el cupo de 5 mascotas.",
+      "item": [
+        {
+          "name": "Crear mascota",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+            "pm.collectionVariables.set(\"mascotaId\", pm.response.json().id);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Firulais\",\n  \"especie\": \"Perro\",\n  \"raza\": \"Labrador\",\n  \"color\": \"Dorado\",\n  \"sexo\": \"MACHO\",\n  \"fechaNacimiento\": \"2020-03-10\",\n  \"duenioId\": {{duenioId}}\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{gateway}}/api/mascotas", "host": ["{{gateway}}"], "path": ["api", "mascotas"] }
+          }
+        },
+        {
+          "name": "Listar mascotas",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway}}/api/mascotas", "host": ["{{gateway}}"], "path": ["api", "mascotas"] } }
+        },
+        {
+          "name": "Buscar mascota por ID",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+            "pm.test(\"Referencia al dueño por ID\", () => pm.expect(pm.response.json().duenioId).to.eql(Number(pm.collectionVariables.get(\"duenioId\"))));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway}}/api/mascotas/{{mascotaId}}", "host": ["{{gateway}}"], "path": ["api", "mascotas", "{{mascotaId}}"] } }
+        },
+        {
+          "name": "Mascotas de un dueño",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+            "pm.test(\"Tiene 1 mascota\", () => pm.expect(pm.response.json()).to.have.lengthOf(1));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway}}/api/mascotas/duenio/{{duenioId}}", "host": ["{{gateway}}"], "path": ["api", "mascotas", "duenio", "{{duenioId}}"] } }
+        },
+        {
+          "name": "Actualizar mascota",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Firulais\",\n  \"especie\": \"Perro\",\n  \"raza\": \"Labrador\",\n  \"color\": \"Negro\",\n  \"sexo\": \"MACHO\",\n  \"fechaNacimiento\": \"2020-03-10\",\n  \"duenioId\": {{duenioId}}\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{gateway}}/api/mascotas/{{mascotaId}}", "host": ["{{gateway}}"], "path": ["api", "mascotas", "{{mascotaId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Veterinarios (ms-veterinario)",
+      "item": [
+        {
+          "name": "Crear veterinario",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": { "type": "text/javascript", "exec": [
+                "// Matrícula única en cada corrida (ms-veterinario no permite duplicadas)",
+                "pm.collectionVariables.set(\"matricula\", \"MV-\" + Math.floor(Math.random() * 900000 + 100000));"
+              ] }
+            },
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": [
+                "pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+                "pm.collectionVariables.set(\"veterinarioId\", pm.response.json().id);"
+              ] }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Maria\",\n  \"apellido\": \"Garcia\",\n  \"telefono\": \"1199887766\",\n  \"email\": null,\n  \"matricula\": \"{{matricula}}\",\n  \"especialidad\": \"Cirugia\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{gateway}}/api/veterinarios", "host": ["{{gateway}}"], "path": ["api", "veterinarios"] }
+          }
+        },
+        {
+          "name": "Listar veterinarios",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway}}/api/veterinarios", "host": ["{{gateway}}"], "path": ["api", "veterinarios"] } }
+        },
+        {
+          "name": "Buscar veterinario por ID",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway}}/api/veterinarios/{{veterinarioId}}", "host": ["{{gateway}}"], "path": ["api", "veterinarios", "{{veterinarioId}}"] } }
+        },
+        {
+          "name": "Veterinarios por especialidad (sin distinguir mayúsculas)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+            "pm.test(\"Incluye al veterinario creado\", () => {",
+            "  const id = Number(pm.collectionVariables.get(\"veterinarioId\"));",
+            "  pm.expect(pm.response.json().map(v => v.id)).to.include(id);",
+            "});"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway}}/api/veterinarios/especialidad/cirugia", "host": ["{{gateway}}"], "path": ["api", "veterinarios", "especialidad", "cirugia"] } }
+        },
+        {
+          "name": "Actualizar veterinario",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Maria\",\n  \"apellido\": \"Garcia\",\n  \"telefono\": \"1199887766\",\n  \"email\": \"maria.garcia@clinica.com\",\n  \"matricula\": \"{{matricula}}\",\n  \"especialidad\": \"Cirugia\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{gateway}}/api/veterinarios/{{veterinarioId}}", "host": ["{{gateway}}"], "path": ["api", "veterinarios", "{{veterinarioId}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Turnos (ms-turno)",
+      "description": "Turno es la entidad central: al crearlo o editarlo, ms-turno valida contra ms-mascota y ms-veterinario (OpenFeign, con Retry y Circuit Breaker) que la mascota y cada veterinario existan.",
+      "item": [
+        {
+          "name": "Crear turno",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": { "type": "text/javascript", "exec": [
+                "// Fecha futura al azar (el turno debe ser posterior a hoy)",
+                "const d = new Date();",
+                "d.setDate(d.getDate() + 30 + Math.floor(Math.random() * 300));",
+                "pm.collectionVariables.set(\"fechaTurno\", d.toISOString().slice(0, 10));"
+              ] }
+            },
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": [
+                "pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+                "pm.test(\"Nace PENDIENTE\", () => pm.expect(pm.response.json().estado).to.eql(\"PENDIENTE\"));",
+                "pm.collectionVariables.set(\"turnoId\", pm.response.json().id);"
+              ] }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fecha\": \"{{fechaTurno}}\",\n  \"hora\": \"10:00\",\n  \"motivo\": \"Control anual\",\n  \"duracionMinutos\": 30,\n  \"mascotaId\": {{mascotaId}},\n  \"veterinarios\": [\n    { \"veterinarioId\": {{veterinarioId}}, \"rol\": \"PRINCIPAL\" }\n  ]\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{gateway}}/api/turnos", "host": ["{{gateway}}"], "path": ["api", "turnos"] }
+          }
+        },
+        {
+          "name": "Listar turnos",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway}}/api/turnos", "host": ["{{gateway}}"], "path": ["api", "turnos"] } }
+        },
+        {
+          "name": "Agenda de un veterinario en una fecha",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+            "pm.test(\"Tiene el turno creado\", () => pm.expect(pm.response.json()).to.have.lengthOf(1));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway}}/api/turnos?veterinarioId={{veterinarioId}}&fecha={{fechaTurno}}", "host": ["{{gateway}}"], "path": ["api", "turnos"], "query": [{ "key": "veterinarioId", "value": "{{veterinarioId}}" }, { "key": "fecha", "value": "{{fechaTurno}}" }] } }
+        },
+        {
+          "name": "Buscar turno por ID",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+            "pm.test(\"Trae los veterinarios con su rol\", () => pm.expect(pm.response.json().veterinarios[0].rol).to.eql(\"PRINCIPAL\"));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway}}/api/turnos/{{turnoId}}", "host": ["{{gateway}}"], "path": ["api", "turnos", "{{turnoId}}"] } }
+        },
+        {
+          "name": "Veterinarios de un turno",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway}}/api/turnos/{{turnoId}}/veterinarios", "host": ["{{gateway}}"], "path": ["api", "turnos", "{{turnoId}}", "veterinarios"] } }
+        },
+        {
+          "name": "Turnos de un veterinario",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway}}/api/turnos/veterinario/{{veterinarioId}}", "host": ["{{gateway}}"], "path": ["api", "turnos", "veterinario", "{{veterinarioId}}"] } }
+        },
+        {
+          "name": "Turnos de una mascota",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway}}/api/turnos/mascota/{{mascotaId}}", "host": ["{{gateway}}"], "path": ["api", "turnos", "mascota", "{{mascotaId}}"] } }
+        },
+        {
+          "name": "Actualizar turno",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+            "pm.test(\"Nueva hora\", () => pm.expect(pm.response.json().hora).to.match(/^11:00/));"
+          ] } }],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fecha\": \"{{fechaTurno}}\",\n  \"hora\": \"11:00\",\n  \"motivo\": \"Control anual y vacunas\",\n  \"duracionMinutos\": 45,\n  \"mascotaId\": {{mascotaId}},\n  \"veterinarios\": [\n    { \"veterinarioId\": {{veterinarioId}}, \"rol\": \"PRINCIPAL\" }\n  ]\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{gateway}}/api/turnos/{{turnoId}}", "host": ["{{gateway}}"], "path": ["api", "turnos", "{{turnoId}}"] }
+          }
+        },
+        {
+          "name": "Cancelar turno",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+            "pm.test(\"Queda CANCELADO\", () => pm.expect(pm.response.json().estado).to.eql(\"CANCELADO\"));"
+          ] } }],
+          "request": { "method": "PATCH", "header": [], "url": { "raw": "{{gateway}}/api/turnos/{{turnoId}}/cancelar", "host": ["{{gateway}}"], "path": ["api", "turnos", "{{turnoId}}", "cancelar"] } }
+        }
+      ]
+    },
+    {
+      "name": "5. Errores de negocio",
+      "description": "Casos que la API debe rechazar. Todos devuelven un ErrorResponse con el campo `mensaje`.",
+      "item": [
+        {
+          "name": "Dueño con DNI duplicado → 409",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"409 Conflict\", () => pm.response.to.have.status(409));",
+            "pm.test(\"Trae mensaje\", () => pm.expect(pm.response.json().mensaje).to.be.a(\"string\"));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Otro\",\n  \"apellido\": \"Duenio\",\n  \"cedula\": \"{{cedula}}\",\n  \"telefono\": \"1122334455\",\n  \"email\": null\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{gateway}}/api/duenios", "host": ["{{gateway}}"], "path": ["api", "duenios"] }
+          }
+        },
+        {
+          "name": "Dueño inexistente → 404",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"404 Not Found\", () => pm.response.to.have.status(404));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway}}/api/duenios/999999999", "host": ["{{gateway}}"], "path": ["api", "duenios", "999999999"] } }
+        },
+        {
+          "name": "Mascota con dueño inexistente → 404 (validación Feign)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"404 Not Found\", () => pm.response.to.have.status(404));",
+            "pm.test(\"Lo informa ms-mascota tras consultar ms-duenio\", () => pm.expect(pm.response.json().mensaje).to.include(\"duenio\"));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Fantasma\",\n  \"especie\": \"Gato\",\n  \"sexo\": \"HEMBRA\",\n  \"fechaNacimiento\": \"2022-01-10\",\n  \"duenioId\": 999999999\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{gateway}}/api/mascotas", "host": ["{{gateway}}"], "path": ["api", "mascotas"] }
+          }
+        },
+        {
+          "name": "Mascota sin datos obligatorios → 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"400 Bad Request\", () => pm.response.to.have.status(400));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"\",\n  \"especie\": \"Perro\",\n  \"duenioId\": {{duenioId}}\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{gateway}}/api/mascotas", "host": ["{{gateway}}"], "path": ["api", "mascotas"] }
+          }
+        },
+        {
+          "name": "Veterinario con matrícula duplicada → 409",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"409 Conflict\", () => pm.response.to.have.status(409));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Otro\",\n  \"apellido\": \"Veterinario\",\n  \"telefono\": \"1199887766\",\n  \"matricula\": \"{{matricula}}\",\n  \"especialidad\": \"Clinica general\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{gateway}}/api/veterinarios", "host": ["{{gateway}}"], "path": ["api", "veterinarios"] }
+          }
+        },
+        {
+          "name": "Turno con fecha pasada → 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"400 Bad Request\", () => pm.response.to.have.status(400));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fecha\": \"2020-01-01\",\n  \"hora\": \"10:00\",\n  \"motivo\": \"Turno en el pasado\",\n  \"duracionMinutos\": 30,\n  \"mascotaId\": {{mascotaId}},\n  \"veterinarios\": [\n    { \"veterinarioId\": {{veterinarioId}}, \"rol\": \"PRINCIPAL\" }\n  ]\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{gateway}}/api/turnos", "host": ["{{gateway}}"], "path": ["api", "turnos"] }
+          }
+        },
+        {
+          "name": "Turno sin veterinario PRINCIPAL → 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"400 Bad Request\", () => pm.response.to.have.status(400));",
+            "pm.test(\"Pide exactamente un PRINCIPAL\", () => pm.expect(pm.response.json().mensaje).to.include(\"PRINCIPAL\"));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fecha\": \"{{fechaTurno}}\",\n  \"hora\": \"15:00\",\n  \"motivo\": \"Sin principal\",\n  \"duracionMinutos\": 30,\n  \"mascotaId\": {{mascotaId}},\n  \"veterinarios\": [\n    { \"veterinarioId\": {{veterinarioId}}, \"rol\": \"ASISTENTE\" }\n  ]\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{gateway}}/api/turnos", "host": ["{{gateway}}"], "path": ["api", "turnos"] }
+          }
+        },
+        {
+          "name": "Turno con mascota inexistente → 404 (validación Feign)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"404 Not Found\", () => pm.response.to.have.status(404));",
+            "pm.test(\"Lo informa ms-turno tras consultar ms-mascota\", () => pm.expect(pm.response.json().mensaje).to.include(\"mascota\"));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fecha\": \"{{fechaTurno}}\",\n  \"hora\": \"15:00\",\n  \"motivo\": \"Mascota inexistente\",\n  \"duracionMinutos\": 30,\n  \"mascotaId\": 999999999,\n  \"veterinarios\": [\n    { \"veterinarioId\": {{veterinarioId}}, \"rol\": \"PRINCIPAL\" }\n  ]\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{gateway}}/api/turnos", "host": ["{{gateway}}"], "path": ["api", "turnos"] }
+          }
+        },
+        {
+          "name": "Crear turno 16:00 (para probar superposición)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+            "pm.collectionVariables.set(\"turnoSuperposicionId\", pm.response.json().id);"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fecha\": \"{{fechaTurno}}\",\n  \"hora\": \"16:00\",\n  \"motivo\": \"Consulta\",\n  \"duracionMinutos\": 30,\n  \"mascotaId\": {{mascotaId}},\n  \"veterinarios\": [\n    { \"veterinarioId\": {{veterinarioId}}, \"rol\": \"PRINCIPAL\" }\n  ]\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{gateway}}/api/turnos", "host": ["{{gateway}}"], "path": ["api", "turnos"] }
+          }
+        },
+        {
+          "name": "Turno superpuesto 16:15 → 409",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"409 Conflict\", () => pm.response.to.have.status(409));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fecha\": \"{{fechaTurno}}\",\n  \"hora\": \"16:15\",\n  \"motivo\": \"Se superpone con el de 16:00\",\n  \"duracionMinutos\": 30,\n  \"mascotaId\": {{mascotaId}},\n  \"veterinarios\": [\n    { \"veterinarioId\": {{veterinarioId}}, \"rol\": \"PRINCIPAL\" }\n  ]\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{gateway}}/api/turnos", "host": ["{{gateway}}"], "path": ["api", "turnos"] }
+          }
+        },
+        {
+          "name": "Cancelar un turno ya cancelado → 422",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"422 Unprocessable Entity\", () => pm.response.to.have.status(422));"
+          ] } }],
+          "request": { "method": "PATCH", "header": [], "url": { "raw": "{{gateway}}/api/turnos/{{turnoId}}/cancelar", "host": ["{{gateway}}"], "path": ["api", "turnos", "{{turnoId}}", "cancelar"] } }
+        }
+      ]
+    },
+    {
+      "name": "6. Infraestructura (Eureka, Config Server, Gateway, Actuator)",
+      "item": [
+        {
+          "name": "Eureka · servicios registrados",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+            "pm.test(\"Están registrados los 4 servicios y el gateway\", () => {",
+            "  const nombres = pm.response.json().applications.application.map(a => a.name);",
+            "  [\"MS-DUENIO\", \"MS-MASCOTA\", \"MS-VETERINARIO\", \"MS-TURNO\", \"API-GATEWAY\"].forEach(n => pm.expect(nombres).to.include(n));",
+            "});"
+          ] } }],
+          "request": { "method": "GET", "header": [{ "key": "Accept", "value": "application/json" }], "url": { "raw": "{{eureka}}/eureka/apps", "host": ["{{eureka}}"], "path": ["eureka", "apps"] } }
+        },
+        {
+          "name": "Config Server · configuración de ms-turno",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+            "pm.test(\"Combina ms-turno.yml y el application.yml compartido\", () => pm.expect(pm.response.json().propertySources.length).to.be.at.least(2));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{configServer}}/ms-turno/default", "host": ["{{configServer}}"], "path": ["ms-turno", "default"] } }
+        },
+        {
+          "name": "Gateway · rutas activas",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+            "pm.test(\"Tiene las 4 rutas configuradas\", () => {",
+            "  const ids = pm.response.json().map(r => r.route_id);",
+            "  [\"ms-duenio\", \"ms-mascota\", \"ms-veterinario\", \"ms-turno\"].forEach(id => pm.expect(ids).to.include(id));",
+            "});"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway}}/actuator/gateway/routes", "host": ["{{gateway}}"], "path": ["actuator", "gateway", "routes"] } }
+        },
+        {
+          "name": "Gateway · health",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"UP\", () => pm.expect(pm.response.json().status).to.eql(\"UP\"));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{gateway}}/actuator/health", "host": ["{{gateway}}"], "path": ["actuator", "health"] } }
+        },
+        {
+          "name": "ms-turno · health (BD, Eureka y circuit breakers)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"UP\", () => pm.expect(pm.response.json().status).to.eql(\"UP\"));",
+            "pm.test(\"Muestra el estado de los circuitos\", () => pm.expect(pm.response.json().components.circuitBreakers.details).to.have.property(\"mascotaService\"));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{msTurno}}/actuator/health", "host": ["{{msTurno}}"], "path": ["actuator", "health"] } }
+        },
+        {
+          "name": "ms-turno · circuit breakers",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{msTurno}}/actuator/circuitbreakers", "host": ["{{msTurno}}"], "path": ["actuator", "circuitbreakers"] } }
+        },
+        {
+          "name": "ms-turno · eventos del circuito mascotaService",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{msTurno}}/actuator/circuitbreakerevents/mascotaService", "host": ["{{msTurno}}"], "path": ["actuator", "circuitbreakerevents", "mascotaService"] } }
+        },
+        {
+          "name": "ms-turno · info",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
+          ] } }],
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{msTurno}}/actuator/info", "host": ["{{msTurno}}"], "path": ["actuator", "info"] } }
+        }
+      ]
+    },
+    {
+      "name": "7. Limpieza (borra lo creado)",
+      "description": "Elimina los registros creados por la colección. Cada microservicio tiene su propia BD: se borra en orden (turnos → mascota → veterinario → dueño) para no dejar referencias huérfanas.",
+      "item": [
+        {
+          "name": "Eliminar turno",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"204 No Content\", () => pm.response.to.have.status(204));"
+          ] } }],
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{gateway}}/api/turnos/{{turnoId}}", "host": ["{{gateway}}"], "path": ["api", "turnos", "{{turnoId}}"] } }
+        },
+        {
+          "name": "Eliminar turno de superposición",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"204 No Content\", () => pm.response.to.have.status(204));"
+          ] } }],
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{gateway}}/api/turnos/{{turnoSuperposicionId}}", "host": ["{{gateway}}"], "path": ["api", "turnos", "{{turnoSuperposicionId}}"] } }
+        },
+        {
+          "name": "Eliminar mascota",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"204 No Content\", () => pm.response.to.have.status(204));"
+          ] } }],
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{gateway}}/api/mascotas/{{mascotaId}}", "host": ["{{gateway}}"], "path": ["api", "mascotas", "{{mascotaId}}"] } }
+        },
+        {
+          "name": "Eliminar veterinario",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"204 No Content\", () => pm.response.to.have.status(204));"
+          ] } }],
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{gateway}}/api/veterinarios/{{veterinarioId}}", "host": ["{{gateway}}"], "path": ["api", "veterinarios", "{{veterinarioId}}"] } }
+        },
+        {
+          "name": "Eliminar dueño",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test(\"204 No Content\", () => pm.response.to.have.status(204));"
+          ] } }],
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{gateway}}/api/duenios/{{duenioId}}", "host": ["{{gateway}}"], "path": ["api", "duenios", "{{duenioId}}"] } }
+        }
+      ]
+    }
+  ]
+}

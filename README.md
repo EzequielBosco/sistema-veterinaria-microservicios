@@ -267,6 +267,17 @@ Se abre con todo el sistema levantado: config-server, eureka-server, los 4 micro
 - También se puede abrir fuera del gateway (por ejemplo con Live Server): en ese caso llama a
   `http://localhost:8080/api`, que tiene CORS habilitado.
 
+## Colección de Postman
+
+`postman/Huellitas-Perdidas.postman_collection.json` (Postman → **Import**). Tiene 50 requests en carpetas
+ordenadas: Dueños, Mascotas, Veterinarios, Turnos, Errores de negocio, Infraestructura y Limpieza.
+
+- Las llamadas de negocio van por el gateway (`{{gateway}}` = `http://localhost:8080`); *Infraestructura* consulta
+  directo a Eureka, Config Server y el Actuator de ms-turno.
+- Se puede ejecutar completa con el **Collection Runner**: los IDs creados se guardan en variables de la colección,
+  el DNI, email, matrícula y fecha del turno se generan al azar en cada corrida, y la última carpeta borra lo creado.
+- Cada request tiene tests que validan el código HTTP esperado (incluidos los errores 400, 404, 409 y 422).
+
 ## Endpoints
 
 ### ms-duenio (`/api/duenios`)
